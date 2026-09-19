@@ -15,9 +15,6 @@ class AuthService {
   static Stream<AuthState> get authStateChanges =>
       _client.auth.onAuthStateChange;
 
-  /// ===========================
-  /// KIRIM OTP KE EMAIL
-  /// ===========================
   static Future<void> sendOtp(String email) async {
     try {
       await _client.auth.signInWithOtp(
