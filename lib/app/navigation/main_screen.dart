@@ -18,9 +18,8 @@ class _MainScreenState extends State<MainScreen> {
 
   final List<Widget> pages = const [
     HomeScreen(),
-    ExploreScreen(),
-    SellScreen(),
     ChatScreen(),
+    SellScreen(),
     ProfileScreen(),
   ];
 
@@ -34,13 +33,7 @@ class _MainScreenState extends State<MainScreen> {
           NavigationDestination(
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home),
-            label: 'Beranda',
-          ),
-          NavigationDestination(icon: Icon(Icons.search), label: 'Jelajah'),
-          NavigationDestination(
-            icon: Icon(Icons.add_box_outlined),
-            selectedIcon: Icon(Icons.add_box),
-            label: 'Jual',
+            label: 'Home',
           ),
           NavigationDestination(
             icon: Icon(Icons.chat_bubble_outline),
@@ -48,9 +41,14 @@ class _MainScreenState extends State<MainScreen> {
             label: 'Chat',
           ),
           NavigationDestination(
+            icon: Icon(Icons.trolley),
+            selectedIcon: Icon(Icons.trolley),
+            label: 'Order',
+          ),
+          NavigationDestination(
             icon: Icon(Icons.person_outline),
             selectedIcon: Icon(Icons.person),
-            label: 'Profil',
+            label: 'Profile',
           ),
         ],
         onDestinationSelected: (index) {
