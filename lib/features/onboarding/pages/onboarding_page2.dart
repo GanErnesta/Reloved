@@ -1,6 +1,5 @@
 import 'package:application_reloved/core/constants/app_colors.dart';
 import 'package:flutter/material.dart';
-import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 
 class OnboardingPage2 extends StatelessWidget {
