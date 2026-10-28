@@ -31,6 +31,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
   Timer? _searchDebounce;
 
   late int _selectedTabIndex; // 0: Komunitas, 1: Jelajahi
+  late List<CommunityPostModel> _explorePosts;
   bool _isSearchMode = false;
   bool _isSearching = false;
   String _searchQuery = '';
@@ -46,6 +47,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
   void initState() {
     super.initState();
     _selectedTabIndex = widget.initialTabIndex;
+    _explorePosts = List.from(CommunityPostModel.dummyPosts);
     _searchFocusNode.addListener(_handleFocusChange);
   }
 
@@ -84,7 +86,6 @@ class _CommunityScreenState extends State<CommunityScreen> {
       _isSearching = true;
     });
 
-    // Simulasi state "Sedang mencari..." sebelum menampilkan hasil
     _searchDebounce = Timer(const Duration(milliseconds: 600), () {
       if (!mounted) return;
       setState(() {
@@ -135,10 +136,43 @@ class _CommunityScreenState extends State<CommunityScreen> {
     );
   }
 
-  void _openPostDetail(CommunityPostModel post) {
+  void _toggleExplorePostLike(int index) {
+    setState(() {
+      final current = _explorePosts[index];
+      final newLiked = !current.isLiked;
+      _explorePosts[index] = current.copyWith(
+        isLiked: newLiked,
+        likeCount: newLiked ? current.likeCount + 1 : current.likeCount - 1,
+      );
+    });
+  }
+
+  Future<void> _openPostDetail(int index) async {
+    final updatedPost = await Navigator.of(context).push<CommunityPostModel>(
+      MaterialPageRoute(
+        builder: (_) => CommunityPostDetailScreen(post: _explorePosts[index]),
+      ),
+    );
+
+    if (updatedPost != null && mounted) {
+      setState(() {
+        _explorePosts[index] = updatedPost;
+      });
+    }
+  }
+
+  void _openProductDetail(AttachedProductModel product) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => CommunityPostDetailScreen(post: post),
+        builder: (_) => Scaffold(
+          appBar: AppBar(title: const Text('Detail Produk')),
+          body: Center(
+            child: Text(
+              'Halaman Detail Produk:\n${product.title} (${product.price})',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -206,7 +240,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
                     });
                   },
                 ),
-              // Body Content (Mode Pencarian vs Mode Tab Normal)
+              // Body Content
               Expanded(
                 child: _isSearchMode
                     ? _buildSearchBody()
@@ -221,9 +255,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
     );
   }
 
-  /// Menampilkan konten saat pengguna berada di Mode Pencarian
   Widget _buildSearchBody() {
-    // 1. Jika input masih kosong -> tampilkan Riwayat Pencarian
     if (_searchQuery.isEmpty) {
       return ListView.builder(
         padding: const EdgeInsets.only(top: 10, bottom: 24),
@@ -238,22 +270,18 @@ class _CommunityScreenState extends State<CommunityScreen> {
       );
     }
 
-    // 2. Jika sedang proses mencari -> tampilkan animasi 3 titik "Sedang mencari..."
     if (_isSearching) {
       return const CommunitySearchLoading();
     }
 
-    // 3. Jika hasil pencarian kosong -> tampilkan ilustrasi Empty State
     final results = _filteredCommunities;
     if (results.isEmpty) {
       return const CommunityEmptySearch();
     }
 
-    // 4. Jika hasil ditemukan -> tampilkan daftar CommunityCard yang cocok
     return _buildCommunityList(results);
   }
 
-  /// Menampilkan daftar kartu komunitas (Tab Komunitas & Hasil Pencarian)
   Widget _buildCommunityList(List<CommunityModel> communities) {
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
@@ -270,18 +298,20 @@ class _CommunityScreenState extends State<CommunityScreen> {
     );
   }
 
-  /// Menampilkan feed postingan pada Tab Jelajahi
   Widget _buildExploreFeed() {
-    final posts = CommunityPostModel.dummyPosts;
     return ListView.builder(
       padding: const EdgeInsets.only(top: 4, bottom: 24),
-      itemCount: posts.length,
+      itemCount: _explorePosts.length,
       itemBuilder: (context, index) {
-        final post = posts[index];
+        final post = _explorePosts[index];
         return CommunityPostCard(
           post: post,
-          onPostTap: () => _openPostDetail(post),
-          onCommentTap: () => _openPostDetail(post),
+          onLikeTap: () => _toggleExplorePostLike(index),
+          onPostTap: () => _openPostDetail(index),
+          onCommentTap: () => _openPostDetail(index),
+          onProductTap: post.attachedProduct != null
+              ? () => _openProductDetail(post.attachedProduct!)
+              : null,
         );
       },
     );

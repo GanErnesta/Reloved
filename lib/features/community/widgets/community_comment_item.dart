@@ -20,14 +20,23 @@ class CommunityCommentItem extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: const Color(0xFFEEEEEE),
-            backgroundImage: AssetImage(comment.authorAvatar),
-            onBackgroundImageError: (_, __) {},
-            child: const Icon(
-              Icons.person,
-              color: Colors.grey,
+          ClipOval(
+            child: Image.asset(
+              comment.authorAvatar,
+              width: 40,
+              height: 40,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return Container(
+                  width: 40,
+                  height: 40,
+                  color: const Color(0xFFEEEEEE),
+                  child: const Icon(
+                    Icons.person,
+                    color: Colors.grey,
+                  ),
+                );
+              },
             ),
           ),
           const SizedBox(width: 12),

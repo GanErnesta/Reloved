@@ -29,17 +29,26 @@ class CommunityPostCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header Author
+            // Header Author (Menggunakan ClipOval + Image.asset agar tidak tertimpa icon)
             Row(
               children: [
-                CircleAvatar(
-                  radius: 21,
-                  backgroundColor: const Color(0xFFEEEEEE),
-                  backgroundImage: AssetImage(post.authorAvatar),
-                  onBackgroundImageError: (_, __) {},
-                  child: const Icon(
-                    Icons.person,
-                    color: Colors.grey,
+                ClipOval(
+                  child: Image.asset(
+                    post.authorAvatar,
+                    width: 42,
+                    height: 42,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        width: 42,
+                        height: 42,
+                        color: const Color(0xFFEEEEEE),
+                        child: const Icon(
+                          Icons.person,
+                          color: Colors.grey,
+                        ),
+                      );
+                    },
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -90,7 +99,7 @@ class CommunityPostCard extends StatelessWidget {
                 color: Color(0xFF42474E),
               ),
             ),
-            // Product Attachment ("Keranjang Kuning")
+            // Product Attachment ("Keranjang Kuning") -> Navigasi ke Detail Produk tersendiri
             if (post.attachedProduct != null) ...[
               const SizedBox(height: 10),
               Padding(
@@ -110,58 +119,78 @@ class CommunityPostCard extends StatelessWidget {
                   InkWell(
                     onTap: onLikeTap,
                     borderRadius: BorderRadius.circular(12),
-                    child: Row(
-                      children: [
-                        Icon(
-                          post.isLiked
-                              ? Icons.favorite_rounded
-                              : Icons.favorite_border_rounded,
-                          size: 16,
-                          color: post.isLiked
-                              ? const Color(0xFF9B2335)
-                              : const Color(0xFF9E9E9E),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${post.likeCount}',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFF9E9E9E),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 4,
+                        horizontal: 2,
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            post.isLiked
+                                ? Icons.favorite_rounded
+                                : Icons.favorite_border_rounded,
+                            size: 16,
+                            color: post.isLiked
+                                ? const Color(0xFF9B2335)
+                                : const Color(0xFF9E9E9E),
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 4),
+                          Text(
+                            '${post.likeCount}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: post.isLiked
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
+                              color: post.isLiked
+                                  ? const Color(0xFF9B2335)
+                                  : const Color(0xFF9E9E9E),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(width: 16),
                   InkWell(
                     onTap: onCommentTap ?? onPostTap,
                     borderRadius: BorderRadius.circular(12),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.chat_bubble_outline_rounded,
-                          size: 15,
-                          color: Color(0xFF9E9E9E),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${post.commentCount}',
-                          style: const TextStyle(
-                            fontSize: 12,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 4,
+                        horizontal: 2,
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.chat_bubble_outline_rounded,
+                            size: 15,
                             color: Color(0xFF9E9E9E),
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 4),
+                          Text(
+                            '${post.commentCount}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF9E9E9E),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   const Spacer(),
                   InkWell(
                     onTap: onShareTap,
                     borderRadius: BorderRadius.circular(12),
-                    child: const Icon(
-                      Icons.share_outlined,
-                      size: 16,
-                      color: Color(0xFF9E9E9E),
+                    child: const Padding(
+                      padding: EdgeInsets.all(4),
+                      child: Icon(
+                        Icons.share_outlined,
+                        size: 16,
+                        color: Color(0xFF9E9E9E),
+                      ),
                     ),
                   ),
                 ],

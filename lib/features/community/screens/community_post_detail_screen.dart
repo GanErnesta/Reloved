@@ -79,59 +79,86 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
     FocusScope.of(context).unfocus();
   }
 
+  void _openProductDetail(AttachedProductModel product) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          appBar: AppBar(title: const Text('Detail Produk')),
+          body: Center(
+            child: Text(
+              'Halaman Detail Produk:\n${product.title} (${product.price})',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            // Header: Tombol Back & Judul "Detail Komen"
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-              child: Row(
-                children: [
-                  CommunityBackButton(
-                    onTap: () => Navigator.of(context).pop(_post),
-                  ),
-                  const SizedBox(width: 20),
-                  const Text(
-                    'Detail Komen',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.black,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) {
+          Navigator.of(context).pop(_post);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              // Header: Tombol Back & Judul "Detail Komen"
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                child: Row(
+                  children: [
+                    CommunityBackButton(
+                      onTap: () => Navigator.of(context).pop(_post),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 20),
+                    const Text(
+                      'Detail Komen',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            // Konten Scrollable: Postingan Utama + Daftar Komentar
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.only(bottom: 16),
-                children: [
-                  CommunityPostCard(
-                    post: _post,
-                    onLikeTap: _togglePostLike,
-                  ),
-                  const SizedBox(height: 4),
-                  ...List.generate(_comments.length, (index) {
-                    return CommunityCommentItem(
-                      comment: _comments[index],
-                      onLikeToggle: () => _toggleCommentLike(index),
-                    );
-                  }),
-                ],
+              // Konten Scrollable: Postingan Utama + Daftar Komentar
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  children: [
+                    CommunityPostCard(
+                      post: _post,
+                      onLikeTap: _togglePostLike,
+                      onProductTap: _post.attachedProduct != null
+                          ? () => _openProductDetail(_post.attachedProduct!)
+                          : null,
+                    ),
+                    const SizedBox(height: 4),
+                    ...List.generate(_comments.length, (index) {
+                      return CommunityCommentItem(
+                        comment: _comments[index],
+                        onLikeToggle: () => _toggleCommentLike(index),
+                      );
+                    }),
+                  ],
+                ),
               ),
-            ),
-            // Input Bar Komentar di Bagian Bawah
-            CommunityCommentInput(
-              controller: _commentController,
-              onSend: _sendComment,
-            ),
-          ],
+              // Input Bar Komentar di Bagian Bawah
+              CommunityCommentInput(
+                controller: _commentController,
+                onSend: _sendComment,
+              ),
+            ],
+          ),
         ),
       ),
     );
