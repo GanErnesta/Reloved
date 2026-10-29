@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import '../../../core/constants/app_colors.dart';
+import '../controllers/order_controller.dart';
 import '../models/order_model.dart';
 import '../widgets/order_card.dart';
+import 'order_detail_screen.dart';
 
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({super.key});
@@ -9,122 +12,140 @@ class OrdersScreen extends StatefulWidget {
   State<OrdersScreen> createState() => _OrdersScreenState();
 }
 
-class _OrdersScreenState extends State<OrdersScreen> {
-  // Dummy data untuk Beli
-  final List<OrderModel> dummyBeli = [
-    OrderModel(
-      id: '1',
-      productName: 'Kemeja Putih',
-      shopName: 'FilkomShop',
-      counterpartName: '',
-      description: 'Dijual Kemeja Putih harga merakyat',
-      price: 49900,
-      imageUrl: 'https://via.placeholder.com/150',
-      status: OrderStatus.selesai,
-      type: OrderType.beli,
-    ),
-  ];
+class _OrdersScreenState extends State<OrdersScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+  final OrderController _orderController = OrderController();
 
-  // Dummy data untuk Jual
-  final List<OrderModel> dummyJual = [
-    OrderModel(
-      id: '2',
-      productName: 'Buku Pemrograman Dasar',
-      shopName: 'Toko Saya',
-      counterpartName: 'Andi',
-      description: 'Buku kondisi 90% mulus',
-      price: 35000,
-      imageUrl: 'https://via.placeholder.com/150',
-      status: OrderStatus.dibayar,
-      type: OrderType.jual,
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _orderController.addListener(_onOrdersUpdated);
+  }
 
-  final List<OrderModel> dummySewa = [
-    OrderModel(
-      id: '2',
-      productName: 'Buku Pemrograman Dasar',
-      shopName: 'Toko Saya',
-      counterpartName: 'Miko',
-      description: 'Buku kondisi 90% mulus',
-      price: 35000,
-      imageUrl: 'https://via.placeholder.com/150',
-      status: OrderStatus.dibuat,
-      type: OrderType.sewa,
-    ),
-  ];
+  void _onOrdersUpdated() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _orderController.removeListener(_onOrdersUpdated);
+    _tabController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    const Color lightMaroon = Color(0xFFF5EAEB);
-
-    return DefaultTabController(
-      length: 3,
-      child: Scaffold(
-        backgroundColor: lightMaroon,
-        appBar: AppBar(
-          backgroundColor: Colors.white,
-          elevation: 0,
-          titleSpacing: 0,
-          leading: IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(8),
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leadingWidth: 64,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 16, top: 8, bottom: 8),
+          child: InkWell(
+            onTap: () => Navigator.of(context).maybePop(),
+            borderRadius: BorderRadius.circular(24),
+            child: Container(
               decoration: const BoxDecoration(
-                color: lightMaroon,
+                color: AppColors.primaryLight,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.arrow_back_ios_new, color: Colors.black, size: 16),
+              child: const Icon(
+                Icons.chevron_left_rounded,
+                color: AppColors.textPrimary,
+                size: 26,
+              ),
             ),
-            onPressed: () {
-              // Navigasi kembali
-            },
-          ),
-          title: const Text(
-            'Pesanan Saya',
-            style: TextStyle(
-              color: Colors.black,
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-            ),
-          ),
-          bottom: const TabBar(
-            labelColor: Color(0xFF9E2A2B),
-            unselectedLabelColor: Colors.black54,
-            indicatorColor: Color(0xFF9E2A2B),
-            indicatorWeight: 4,
-            tabs: [
-              Tab(text: 'Beli'),
-              Tab(text: 'Jual'),
-              Tab(text: 'Sewa'),
-            ],
           ),
         ),
-        body: TabBarView(
-          children: [
-            // Tab Beli
-            _buildOrderList(dummyBeli),
-            // Tab Jual
-            _buildOrderList(dummyJual),
-            // Tab Sewa
-            _buildOrderList(dummySewa),
+        title: const Text(
+          'Pesanan Saya',
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        bottom: TabBar(
+          controller: _tabController,
+          labelColor: AppColors.primary,
+          unselectedLabelColor: AppColors.textPrimary,
+          labelStyle: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+          ),
+          unselectedLabelStyle: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+          indicatorColor: AppColors.primary,
+          indicatorWeight: 3,
+          tabs: const [
+            Tab(text: 'Beli'),
+            Tab(text: 'Sewa'),
           ],
         ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _buildOrderList(OrderType.beli),
+          _buildOrderList(OrderType.sewa),
+        ],
       ),
     );
   }
 
-  Widget _buildOrderList(List<OrderModel> orders) {
+  Widget _buildOrderList(OrderType type) {
+    final orders = _orderController.getOrdersByType(type);
+
     if (orders.isEmpty) {
       return const Center(
-        child: Text('Belum ada pesanan'),
+        child: Text(
+          'Belum ada pesanan.',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
       );
     }
 
+    // Langsung menampilkan daftar kartu tanpa tulisan "Hari ini"
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       itemCount: orders.length,
       itemBuilder: (context, index) {
-        return OrderCard(order: orders[index]);
+        final order = orders[index];
+        return OrderCard(
+          order: order,
+          showStatusBadge: true,
+          onCardTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => OrderDetailScreen(
+                  order: order,
+                  orderController: _orderController,
+                ),
+              ),
+            );
+          },
+          onShopTap: () {
+            // Navigasi ke halaman toko
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Menuju toko ${order.shopName}...')),
+            );
+          },
+          onCancelConfirmed: () {
+            _orderController.cancelOrder(order.id);
+          },
+          onReorderTap: () {
+            // Navigasi pesan ulang / checkout ulang
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Memproses pesan lagi...')),
+            );
+          },
+        );
       },
     );
   }

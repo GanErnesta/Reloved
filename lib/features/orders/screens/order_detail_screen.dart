@@ -1,121 +1,195 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import '../../../core/constants/app_colors.dart';
+import '../controllers/order_controller.dart';
 import '../models/order_model.dart';
-import '../widgets/order_status_timeline.dart';
-import '../widgets/order_location_box.dart';
+import '../widgets/order_card.dart';
+import '../widgets/order_date_info_card.dart';
+import '../widgets/order_location_card.dart';
+import '../widgets/order_payment_card.dart';
+import '../widgets/order_status_header_card.dart';
 
-class OrderDetailScreen extends StatelessWidget {
+class OrderDetailScreen extends StatefulWidget {
   final OrderModel order;
+  final OrderController orderController;
 
-  final Color lightMaroon = const Color(0xFFF5EAEB);
+  const OrderDetailScreen({
+    super.key,
+    required this.order,
+    required this.orderController,
+  });
 
-  const OrderDetailScreen({super.key, required this.order});
+  @override
+  State<OrderDetailScreen> createState() => _OrderDetailScreenState();
+}
 
-  String get _pageTitle {
-    switch (order.type) {
-      case OrderType.beli: return 'Detail Pesanan';
-      case OrderType.jual: return 'Detail Barang';
-      case OrderType.sewa: return 'Detail Sewa';
-    }
+class _OrderDetailScreenState extends State<OrderDetailScreen> {
+  @override
+  void initState() {
+    super.initState();
+    widget.orderController.addListener(_onUpdate);
   }
 
-  String get _chatLabel {
-    return order.type == OrderType.beli
-        ? '${order.shopName} (Pengirim)'
-        : '${order.counterpartName} (Pembeli)';
+  void _onUpdate() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    widget.orderController.removeListener(_onUpdate);
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final order = widget.order;
+    final bool isSewa = order.orderType == OrderType.sewa;
+
     return Scaffold(
-      backgroundColor: lightMaroon,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        titleSpacing: 0,
-        leading: IconButton(
-          icon: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: lightMaroon,
-              shape: BoxShape.circle,
+        leadingWidth: 64,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 16, top: 8, bottom: 8),
+          child: InkWell(
+            onTap: () => Navigator.of(context).pop(),
+            borderRadius: BorderRadius.circular(24),
+            child: Container(
+              decoration: const BoxDecoration(
+                color: AppColors.primaryLight,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.chevron_left_rounded,
+                color: AppColors.textPrimary,
+                size: 26,
+              ),
             ),
-            child: const Icon(Icons.arrow_back_ios_new, color: Colors.black, size: 16),
           ),
-          onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          _pageTitle,
-          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18),
+          isSewa ? 'Detail Sewa' : 'Detail Pesanan',
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            OrderStatusTimeline(order: order, chatLabel: _chatLabel),
-            const SizedBox(height: 16),
-            const OrderLocationBox(),
-            const SizedBox(height: 16),
-            _buildPaymentSummaryCard(),
+            // 1. Kartu Header Status (4 Tahap + 1 Baris Chat Toko)
+            OrderStatusHeaderCard(
+              status: order.status,
+              shopName: order.shopName,
+              shopAvatarPath: order.shopAvatarPath,
+              onChatTap: () {
+                // Navigasi ke ChatRoomScreen dengan toko
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Membuka ruang chat ${order.shopName}...'),
+                  ),
+                );
+              },
+            ),
+
+            // 2. Kartu Produk (Tanpa badge status kecil agar tidak berulang)
+            OrderCard(
+              order: order,
+              showStatusBadge: false,
+              onShopTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Menuju toko ${order.shopName}...')),
+                );
+              },
+              onCancelConfirmed: () {
+                widget.orderController.cancelOrder(order.id);
+                Navigator.of(context).pop();
+              },
+              onReorderTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Memproses pesan lagi...')),
+                );
+              },
+            ),
+
+            // 3. Kartu Detail Tanggal Pemesanan, Penerimaan & Pengembalian Sewa
+            OrderDateInfoCard(order: order),
+
+            // 4. Kartu Lokasi Diambil dari & Diantar ke (Hanya bisa diklik saat Menunggu)
+            OrderLocationCard(
+              order: order,
+              onChangeDeliveryAddressTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Membuka halaman ubah alamat pengantaran...'),
+                  ),
+                );
+              },
+            ),
+
+            // 5. Kartu Rincian Pembayaran (Metode pembayaran hanya bisa diklik saat Menunggu)
+            OrderPaymentCard(
+              order: order,
+              onChangePaymentMethodTap: () {
+                _showPaymentMethodPicker(context, order);
+              },
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildPaymentSummaryCard() { //gabung aja
-    final currencyFormatter = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+  /// Contoh bottom sheet pemilihan metode pembayaran (Slot integrasi Midtrans)
+  void _showPaymentMethodPicker(BuildContext context, OrderModel order) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Rincian Pembayaran', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          const SizedBox(height: 16),
-          _buildPaymentRow('Biaya Produk', currencyFormatter.format(order.price)),
-          const SizedBox(height: 8),
-          _buildPaymentRow('Ongkir', 'Rp 5.000'),
-          const SizedBox(height: 8),
-          _buildPaymentRow('Diskon', '- Rp 0', valueColor: const Color(0xFF4CAF50)),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 16),
-            child: Divider(thickness: 1, color: Color(0xFFEEEEEE)),
+      builder: (ctx) {
+        final methods = ['QRIS', 'GoPay (Midtrans)', 'Virtual Account BCA'];
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Pilih Metode Pembayaran',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ...methods.map(
+                      (method) => ListTile(
+                    title: Text(method),
+                    trailing: order.paymentMethod == method
+                        ? const Icon(Icons.check, color: AppColors.primary)
+                        : null,
+                    onTap: () {
+                      widget.orderController.changePaymentMethod(
+                        order.id,
+                        method,
+                      );
+                      Navigator.of(ctx).pop();
+                    },
+                  ),
+                ),
+              ],
+            ),
           ),
-          _buildPaymentRow('Total Biaya', currencyFormatter.format(order.price + 5000), isBold: true),
-          const SizedBox(height: 16),
-          _buildPaymentRow('Metode Pembayaran', 'QRIS', isBold: true),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPaymentRow(String title, String value, {bool isBold = false, Color? valueColor}) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
-            color: isBold ? Colors.black : Colors.black87,
-            fontSize: 14,
-          ),
-        ),
-        Text(
-          value,
-          style: TextStyle(
-            fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
-            color: valueColor ?? Colors.black,
-            fontSize: 14,
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 }

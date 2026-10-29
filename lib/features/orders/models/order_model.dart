@@ -1,55 +1,95 @@
-import 'package:flutter/material.dart';
+enum OrderType { beli, sewa }
 
-enum OrderStatus { dibuat, dibayar, dikirim, selesai }
-enum OrderType { beli, jual, sewa }
+enum OrderStatus {
+  menunggu,
+  dikirim,
+  terkirim,
+  selesai,
+  dibatalkan,
+}
+
+class OrderItemModel {
+  final String id;
+  final String productName;
+  final String imagePath;
+  final int price;
+  final int quantity;
+  final String? variant; // Kosongkan (null / '') jika tidak ada variasi warna/ukuran
+
+  const OrderItemModel({
+    required this.id,
+    required this.productName,
+    required this.imagePath,
+    required this.price,
+    required this.quantity,
+    this.variant,
+  });
+}
 
 class OrderModel {
   final String id;
-  final String productName;
+  final String shopId;
   final String shopName;
-  final String counterpartName;
-  final String description;
-  final double price;
-  final String imageUrl;
-  final OrderStatus status;
-  final OrderType type;
+  final String shopAvatarPath;
+  final OrderType orderType;
+  OrderStatus status;
+  final List<OrderItemModel> items;
+
+  // Informasi Waktu
+  // Untuk Beli: berisi tanggal + jam rinci. Untuk Sewa: berisi hari & tanggal saja.
+  final String orderDateText;
+  final String receivedDateText;
+
+  // Khusus Tipe Sewa
+  final int? rentalDurationDays;
+  final String? rentalRemainingText;
+  final String? rentalReturnDateText;
+
+  // Informasi Lokasi
+  final String pickupAddress;
+  final String deliveryAddress;
+  final String buyerAccountInfo;
+
+  // Rincian Pembayaran
+  final int productSubtotal;
+  final int shippingFee;
+  final int discount;
+  String paymentMethod;
+
+  // Slot Integrasi Backend (Supabase) & Payment Gateway (Midtrans)
+  final String? supabaseTransactionId;
+  final String? midtransOrderId;
+  final String? midtransSnapToken;
+  final String? midtransRedirectUrl;
 
   OrderModel({
     required this.id,
-    required this.productName,
+    required this.shopId,
     required this.shopName,
-    required this.counterpartName,
-    required this.description,
-    required this.price,
-    required this.imageUrl,
+    required this.shopAvatarPath,
+    required this.orderType,
     required this.status,
-    required this.type,
+    required this.items,
+    required this.orderDateText,
+    required this.receivedDateText,
+    this.rentalDurationDays,
+    this.rentalRemainingText,
+    this.rentalReturnDateText,
+    required this.pickupAddress,
+    required this.deliveryAddress,
+    required this.buyerAccountInfo,
+    required this.productSubtotal,
+    required this.shippingFee,
+    this.discount = 0,
+    required this.paymentMethod,
+    this.supabaseTransactionId,
+    this.midtransOrderId,
+    this.midtransSnapToken,
+    this.midtransRedirectUrl,
   });
 
-  String get statusText {
-    switch (status) {
-      case OrderStatus.dibuat:
-        return 'Dibuat';
-      case OrderStatus.dibayar:
-        return 'Dibayar';
-      case OrderStatus.dikirim:
-        return 'Dikirim';
-      case OrderStatus.selesai:
-        return 'Selesai';
-    }
-  }
+  int get totalProductPrice =>
+      items.fold(0, (sum, item) => sum + (item.price * item.quantity));
 
-  Color get statusColor {
-    if (status == OrderStatus.selesai) {
-      return const Color(0xFF4CAF50);
-    }
-    return const Color(0xFFF2A63B);
-  }
-
-  Color get statusBackgroundColor {
-    if (status == OrderStatus.selesai) {
-      return const Color(0xFFE8F5E9);
-    }
-    return const Color(0xFFFFF8ED);
-  }
+  int get grandTotal => productSubtotal + shippingFee - discount;
 }
