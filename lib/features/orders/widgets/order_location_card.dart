@@ -1,21 +1,25 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
-import '../models/order_model.dart';
+import '../models/safe_meeting_point_model.dart';
 
 class OrderLocationCard extends StatelessWidget {
-  final OrderModel order;
-  final VoidCallback onChangeDeliveryAddressTap;
+  final String pickupAddress;
+  final SafeMeetingPointModel safeMeetingPoint;
+  final String buyerAccountInfo;
+  final bool canEditMeetingPoint;
+  final VoidCallback? onTapMeetingPoint;
 
   const OrderLocationCard({
     super.key,
-    required this.order,
-    required this.onChangeDeliveryAddressTap,
+    required this.pickupAddress,
+    required this.safeMeetingPoint,
+    required this.buyerAccountInfo,
+    this.canEditMeetingPoint = false,
+    this.onTapMeetingPoint,
   });
 
   @override
   Widget build(BuildContext context) {
-    final bool canEditAddress = order.status == OrderStatus.menunggu;
-
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 16),
@@ -27,7 +31,7 @@ class OrderLocationCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Bagian 1: Diambil dari
+          // 1. Diambil dari (Alamat Seller)
           Row(
             children: [
               Container(
@@ -51,7 +55,7 @@ class OrderLocationCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            order.pickupAddress,
+            pickupAddress,
             style: const TextStyle(
               fontSize: 12,
               color: AppColors.textPrimary,
@@ -60,7 +64,7 @@ class OrderLocationCard extends StatelessWidget {
           ),
           const SizedBox(height: 14),
 
-          // Bagian 2: Diantar ke (Hanya dapat diklik jika status == menunggu)
+          // 2. Diantar ke (Safe Meeting Point Buyer)
           Row(
             children: [
               Container(
@@ -84,7 +88,7 @@ class OrderLocationCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           InkWell(
-            onTap: canEditAddress ? onChangeDeliveryAddressTap : null,
+            onTap: canEditMeetingPoint ? onTapMeetingPoint : null,
             borderRadius: BorderRadius.circular(8),
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 2),
@@ -96,7 +100,7 @@ class OrderLocationCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          order.deliveryAddress,
+                          '${safeMeetingPoint.name} — ${safeMeetingPoint.fullAddress}',
                           style: const TextStyle(
                             fontSize: 12,
                             color: AppColors.textPrimary,
@@ -105,7 +109,7 @@ class OrderLocationCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          order.buyerAccountInfo,
+                          buyerAccountInfo,
                           style: const TextStyle(
                             fontSize: 11,
                             color: AppColors.textSecondary,
@@ -117,7 +121,7 @@ class OrderLocationCard extends StatelessWidget {
                   const SizedBox(width: 8),
                   Icon(
                     Icons.chevron_right_rounded,
-                    color: canEditAddress
+                    color: canEditMeetingPoint
                         ? AppColors.textPrimary
                         : AppColors.disabledText,
                   ),

@@ -1,16 +1,25 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
-import '../models/order_model.dart';
 
 class OrderPaymentCard extends StatelessWidget {
-  final OrderModel order;
-  final VoidCallback onChangePaymentMethodTap;
+  final int productSubtotal;
+  final int shippingFee;
+  final int discount;
+  final String? paymentMethod;
+  final bool isEditable;
+  final VoidCallback? onPaymentMethodTap;
 
   const OrderPaymentCard({
     super.key,
-    required this.order,
-    required this.onChangePaymentMethodTap,
+    required this.productSubtotal,
+    required this.shippingFee,
+    this.discount = 0,
+    this.paymentMethod,
+    this.isEditable = false,
+    this.onPaymentMethodTap,
   });
+
+  int get grandTotal => productSubtotal + shippingFee - discount;
 
   String _formatRupiah(int amount) {
     final str = amount.toString().replaceAllMapped(
@@ -22,7 +31,8 @@ class OrderPaymentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool canChangePayment = order.status == OrderStatus.menunggu;
+    final bool hasPaymentMethod =
+        paymentMethod != null && paymentMethod!.trim().isNotEmpty;
 
     return Container(
       width: double.infinity,
@@ -44,26 +54,26 @@ class OrderPaymentCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          _buildPriceRow('Biaya Produk', _formatRupiah(order.productSubtotal)),
+          _buildPriceRow('Biaya Produk', _formatRupiah(productSubtotal)),
           const SizedBox(height: 6),
-          _buildPriceRow('Ongkir', _formatRupiah(order.shippingFee)),
+          _buildPriceRow('Ongkir', _formatRupiah(shippingFee)),
           const SizedBox(height: 6),
           _buildPriceRow(
             'Diskon',
-            '- ${_formatRupiah(order.discount)}',
+            '- ${_formatRupiah(discount)}',
             valueColor: AppColors.statusSuccess,
           ),
           const SizedBox(height: 8),
           _buildPriceRow(
             'Total Biaya',
-            _formatRupiah(order.grandTotal),
+            _formatRupiah(grandTotal),
             isBold: true,
           ),
           const SizedBox(height: 14),
 
-          // Metode Pembayaran (Hanya dapat diklik jika status == menunggu)
+          // Baris Metode Pembayaran
           InkWell(
-            onTap: canChangePayment ? onChangePaymentMethodTap : null,
+            onTap: isEditable ? onPaymentMethodTap : null,
             borderRadius: BorderRadius.circular(8),
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 4),
@@ -81,23 +91,25 @@ class OrderPaymentCard extends StatelessWidget {
                   Row(
                     children: [
                       Text(
-                        order.paymentMethod,
+                        hasPaymentMethod ? paymentMethod! : 'Pilih Metode',
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: canChangePayment
+                          color: hasPaymentMethod
                               ? AppColors.textPrimary
-                              : AppColors.textSecondary,
+                              : AppColors.primary,
                         ),
                       ),
-                      const SizedBox(width: 4),
-                      Icon(
-                        Icons.chevron_right_rounded,
-                        size: 20,
-                        color: canChangePayment
-                            ? AppColors.textPrimary
-                            : AppColors.disabledText,
-                      ),
+                      if (isEditable) ...[
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.chevron_right_rounded,
+                          size: 20,
+                          color: hasPaymentMethod
+                              ? AppColors.textPrimary
+                              : AppColors.primary,
+                        ),
+                      ],
                     ],
                   ),
                 ],

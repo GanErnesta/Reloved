@@ -1,3 +1,5 @@
+import 'safe_meeting_point_model.dart';
+
 enum OrderType { beli, sewa }
 
 enum OrderStatus {
@@ -14,7 +16,7 @@ class OrderItemModel {
   final String imagePath;
   final int price;
   final int quantity;
-  final String? variant; // Kosongkan (null / '') jika tidak ada variasi warna/ukuran
+  final String? variant;
 
   const OrderItemModel({
     required this.id,
@@ -35,8 +37,6 @@ class OrderModel {
   OrderStatus status;
   final List<OrderItemModel> items;
 
-  // Informasi Waktu
-  // Untuk Beli: berisi tanggal + jam rinci. Untuk Sewa: berisi hari & tanggal saja.
   final String orderDateText;
   final String receivedDateText;
 
@@ -45,22 +45,21 @@ class OrderModel {
   final String? rentalRemainingText;
   final String? rentalReturnDateText;
 
-  // Informasi Lokasi
+  // Lokasi: Seller memiliki alamat tetap (pickupAddress), Buyer menggunakan Safe Meeting Point
   final String pickupAddress;
-  final String deliveryAddress;
+  SafeMeetingPointModel safeMeetingPoint;
   final String buyerAccountInfo;
 
   // Rincian Pembayaran
   final int productSubtotal;
   final int shippingFee;
   final int discount;
-  String paymentMethod;
+  final String paymentMethod;
 
   // Slot Integrasi Backend (Supabase) & Payment Gateway (Midtrans)
   final String? supabaseTransactionId;
   final String? midtransOrderId;
   final String? midtransSnapToken;
-  final String? midtransRedirectUrl;
 
   OrderModel({
     required this.id,
@@ -76,7 +75,7 @@ class OrderModel {
     this.rentalRemainingText,
     this.rentalReturnDateText,
     required this.pickupAddress,
-    required this.deliveryAddress,
+    required this.safeMeetingPoint,
     required this.buyerAccountInfo,
     required this.productSubtotal,
     required this.shippingFee,
@@ -85,7 +84,6 @@ class OrderModel {
     this.supabaseTransactionId,
     this.midtransOrderId,
     this.midtransSnapToken,
-    this.midtransRedirectUrl,
   });
 
   int get totalProductPrice =>

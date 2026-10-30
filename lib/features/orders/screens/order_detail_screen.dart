@@ -7,6 +7,7 @@ import '../widgets/order_date_info_card.dart';
 import '../widgets/order_location_card.dart';
 import '../widgets/order_payment_card.dart';
 import '../widgets/order_status_header_card.dart';
+import '../widgets/safe_meeting_point_sheet.dart';
 
 class OrderDetailScreen extends StatefulWidget {
   final OrderModel order;
@@ -43,6 +44,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   Widget build(BuildContext context) {
     final order = widget.order;
     final bool isSewa = order.orderType == OrderType.sewa;
+    final bool isWaiting = order.status == OrderStatus.menunggu;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -87,7 +89,6 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               shopName: order.shopName,
               shopAvatarPath: order.shopAvatarPath,
               onChatTap: () {
-                // Navigasi ke ChatRoomScreen dengan toko
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text('Membuka ruang chat ${order.shopName}...'),
@@ -96,100 +97,52 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               },
             ),
 
-            // 2. Kartu Produk (Tanpa badge status kecil agar tidak berulang)
+            // 2. Kartu Produk (Tanpa badge status kecil)
             OrderCard(
               order: order,
               showStatusBadge: false,
-              onShopTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Menuju toko ${order.shopName}...')),
-                );
-              },
+              onShopTap: () {},
               onCancelConfirmed: () {
                 widget.orderController.cancelOrder(order.id);
                 Navigator.of(context).pop();
               },
-              onReorderTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Memproses pesan lagi...')),
-                );
-              },
+              onReorderTap: () {},
             ),
 
-            // 3. Kartu Detail Tanggal Pemesanan, Penerimaan & Pengembalian Sewa
+            // 3. Kartu Detail Tanggal
             OrderDateInfoCard(order: order),
 
-            // 4. Kartu Lokasi Diambil dari & Diantar ke (Hanya bisa diklik saat Menunggu)
+            // 4. Kartu Lokasi (Safe Meeting Point bisa diubah jika status == menunggu)
             OrderLocationCard(
-              order: order,
-              onChangeDeliveryAddressTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Membuka halaman ubah alamat pengantaran...'),
-                  ),
+              pickupAddress: order.pickupAddress,
+              safeMeetingPoint: order.safeMeetingPoint,
+              buyerAccountInfo: order.buyerAccountInfo,
+              canEditMeetingPoint: isWaiting,
+              onTapMeetingPoint: () async {
+                final selected = await SafeMeetingPointSheet.show(
+                  context,
+                  currentSelection: order.safeMeetingPoint,
                 );
+                if (selected != null) {
+                  widget.orderController.updateSafeMeetingPoint(
+                    order.id,
+                    selected,
+                  );
+                }
               },
             ),
 
-            // 5. Kartu Rincian Pembayaran (Metode pembayaran hanya bisa diklik saat Menunggu)
+            // 5. Kartu Rincian Pembayaran (Fix, tanpa '>')
             OrderPaymentCard(
-              order: order,
-              onChangePaymentMethodTap: () {
-                _showPaymentMethodPicker(context, order);
-              },
+              productSubtotal: order.productSubtotal,
+              shippingFee: order.shippingFee,
+              discount: order.discount,
+              paymentMethod: order.paymentMethod,
+              isEditable: false,
             ),
           ],
         ),
       ),
-    );
-  }
-
-  /// Contoh bottom sheet pemilihan metode pembayaran (Slot integrasi Midtrans)
-  void _showPaymentMethodPicker(BuildContext context, OrderModel order) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        final methods = ['QRIS', 'GoPay (Midtrans)', 'Virtual Account BCA'];
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Pilih Metode Pembayaran',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                ...methods.map(
-                      (method) => ListTile(
-                    title: Text(method),
-                    trailing: order.paymentMethod == method
-                        ? const Icon(Icons.check, color: AppColors.primary)
-                        : null,
-                    onTap: () {
-                      widget.orderController.changePaymentMethod(
-                        order.id,
-                        method,
-                      );
-                      Navigator.of(ctx).pop();
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 }

@@ -15,7 +15,7 @@ class OrdersScreen extends StatefulWidget {
 class _OrdersScreenState extends State<OrdersScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
-  final OrderController _orderController = OrderController();
+  final OrderController _orderController = OrderController.instance;
 
   @override
   void initState() {
@@ -42,30 +42,13 @@ class _OrdersScreenState extends State<OrdersScreen>
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leadingWidth: 64,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 16, top: 8, bottom: 8),
-          child: InkWell(
-            onTap: () => Navigator.of(context).maybePop(),
-            borderRadius: BorderRadius.circular(24),
-            child: Container(
-              decoration: const BoxDecoration(
-                color: AppColors.primaryLight,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.chevron_left_rounded,
-                color: AppColors.textPrimary,
-                size: 26,
-              ),
-            ),
-          ),
-        ),
+        automaticallyImplyLeading: false,
+        titleSpacing: 20,
         title: const Text(
           'Pesanan Saya',
           style: TextStyle(
             color: AppColors.textPrimary,
-            fontSize: 18,
+            fontSize: 20,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -111,7 +94,6 @@ class _OrdersScreenState extends State<OrdersScreen>
       );
     }
 
-    // Langsung menampilkan daftar kartu tanpa tulisan "Hari ini"
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       itemCount: orders.length,
@@ -131,7 +113,6 @@ class _OrdersScreenState extends State<OrdersScreen>
             );
           },
           onShopTap: () {
-            // Navigasi ke halaman toko
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('Menuju toko ${order.shopName}...')),
             );
@@ -140,7 +121,6 @@ class _OrdersScreenState extends State<OrdersScreen>
             _orderController.cancelOrder(order.id);
           },
           onReorderTap: () {
-            // Navigasi pesan ulang / checkout ulang
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Memproses pesan lagi...')),
             );
