@@ -13,7 +13,7 @@ class CategoryMenu extends StatelessWidget {
     ),
     _CategoryItem(
       icon: Icons.bed_outlined,
-      title: 'Kebutuhan\nKos',
+      title: 'Barang Kost',
     ),
     _CategoryItem(
       icon: Icons.checkroom_outlined,
@@ -23,55 +23,75 @@ class CategoryMenu extends StatelessWidget {
       icon: Icons.science_outlined,
       title: 'Alat\nPraktikum',
     ),
+    _CategoryItem(
+      icon: Icons.restaurant_outlined,
+      title: 'Bumbu\nMakanan',
+    ),
+    _CategoryItem(
+      icon: Icons.tv_outlined,
+      title: 'Alat\nElektronik',
+    ),
+    _CategoryItem(
+      icon: Icons.face_retouching_natural_outlined,
+      title: 'Makeup &\nSkincare',
+    ),
+    _CategoryItem(
+      icon: Icons.tune,
+      title: 'Lihat Semua',
+    ),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        16,
-        16,
-        16,
-        12,
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: categories.map((category) {
-          return SizedBox(
-            width: 78,
-            child: Column(
-              children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.background,
-                    border: Border.all(
-                      color: AppColors.primary,
-                    ),
-                  ),
-                  child: Icon(
-                    category.icon,
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: categories.length,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 4,
+          mainAxisSpacing: 16,
+          crossAxisSpacing: 8,
+          childAspectRatio: 0.88,
+        ),
+        itemBuilder: (context, index) {
+          final category = categories[index];
+
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white,
+                  border: Border.all(
                     color: AppColors.primary,
-                    size: 27,
+                    width: 1.6,
                   ),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  category.title,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.primary,
-                    height: 1.2,
-                    fontSize: 12,
-                  ),
+                child: Icon(
+                  category.icon,
+                  color: AppColors.primary,
+                  size: 26,
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                category.title,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.primary,
+                  fontSize: 11,
+                  height: 1.15,
+                ),
+              ),
+            ],
           );
-        }).toList(),
+        },
       ),
     );
   }

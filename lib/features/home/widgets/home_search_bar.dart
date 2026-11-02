@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_radius.dart';
-import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 
 class HomeSearchBar extends StatelessWidget {
@@ -11,41 +10,61 @@ class HomeSearchBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: 4,
-      ),
-      child: Container(
-        height: 42,
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.10),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: TextField(
-          style: AppTextStyles.body,
-          decoration: InputDecoration(
-            hintText: 'Search',
-            hintStyle: AppTextStyles.body.copyWith(
-              color: AppColors.textSecondary,
-            ),
-            prefixIcon: const Icon(
-              Icons.search,
-              color: AppColors.textSecondary,
-              size: 23,
-            ),
-            border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(
-              vertical: 10,
+      padding: const EdgeInsets.fromLTRB(20, 2, 20, 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 38,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8F8F8),
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 3,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: TextField(
+                style: AppTextStyles.body.copyWith(
+                  fontSize: 14,
+                ),
+                textAlignVertical: TextAlignVertical.center,
+                decoration: InputDecoration(
+                  hintText: 'Search',
+                  hintStyle: AppTextStyles.body.copyWith(
+                    color: const Color(0xFF777777),
+                    fontSize: 14,
+                  ),
+                  prefixIcon: const Icon(
+                    Icons.search,
+                    color: const Color(0xFF555555),
+                    size: 21,
+                  ),
+                  prefixIconConstraints: const BoxConstraints(
+                    minWidth: 36,
+                    minHeight: 38,
+                  ),
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(
+                    vertical: 8,
+                  ),
+                ),
+              ),
             ),
           ),
-        ),
+          const SizedBox(width: 14),
+          const Icon(
+            Icons.shopping_cart_outlined,
+            color: AppColors.primary,
+            size: 27,
+          ),
+          const SizedBox(width: 2),
+        ],
       ),
     );
   }

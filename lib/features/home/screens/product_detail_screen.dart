@@ -4,15 +4,12 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_radius.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
-import '../widgets/product_card.dart';
+import '../models/product.dart';
 
 class ProductDetailScreen extends StatelessWidget {
-  final ProductItem product;
+  final Product product;
 
-  const ProductDetailScreen({
-    super.key,
-    required this.product,
-  });
+  const ProductDetailScreen({super.key, required this.product});
 
   @override
   Widget build(BuildContext context) {
@@ -24,9 +21,7 @@ class ProductDetailScreen extends StatelessWidget {
             _buildHeader(context),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.only(
-                  bottom: AppSpacing.lg,
-                ),
+                padding: const EdgeInsets.only(bottom: AppSpacing.lg),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -42,8 +37,110 @@ class ProductDetailScreen extends StatelessWidget {
           ],
         ),
       ),
+      bottomNavigationBar: _buildBottomActionBar(),
     );
   }
+
+  Widget _buildBottomActionBar() {
+  return SafeArea(
+    top: false,
+    child: Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 12,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(18),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.10),
+            blurRadius: 12,
+            offset: const Offset(0, -3),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 42,
+            height: 42,
+            child: OutlinedButton(
+              onPressed: () {},
+              style: OutlinedButton.styleFrom(
+                padding: EdgeInsets.zero,
+                backgroundColor: const Color(0xFFF4E5E7),
+                side: const BorderSide(
+                  color: AppColors.primary,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Icon(
+                Icons.chat_bubble_outline,
+                color: AppColors.primary,
+                size: 20,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: SizedBox(
+              height: 42,
+              child: OutlinedButton(
+                onPressed: () {},
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: const Color(0xFFE8B7BE),
+                  side: const BorderSide(
+                    color: AppColors.primary,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: Text(
+                  '+ Keranjang',
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: SizedBox(
+              height: 42,
+              child: ElevatedButton(
+                onPressed: () {},
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: Text(
+                  'Beli',
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
 
   Widget _buildHeader(BuildContext context) {
     return SizedBox(
@@ -51,9 +148,7 @@ class ProductDetailScreen extends StatelessWidget {
       child: Align(
         alignment: Alignment.centerLeft,
         child: Padding(
-          padding: const EdgeInsets.only(
-            left: AppSpacing.md,
-          ),
+          padding: const EdgeInsets.only(left: AppSpacing.md),
           child: GestureDetector(
             onTap: () => Navigator.pop(context),
             child: const Icon(
@@ -69,9 +164,7 @@ class ProductDetailScreen extends StatelessWidget {
 
   Widget _buildProductImage() {
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
       child: Container(
         width: double.infinity,
         height: 455,
@@ -79,9 +172,7 @@ class ProductDetailScreen extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(AppRadius.md),
-          border: Border.all(
-            color: AppColors.border,
-          ),
+          border: Border.all(color: AppColors.border),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.08),
@@ -113,9 +204,7 @@ class ProductDetailScreen extends StatelessWidget {
 
   Widget _buildProductInfo() {
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -128,7 +217,7 @@ class ProductDetailScreen extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            product.price,
+            formatPrice(product.price),
             style: AppTextStyles.heading.copyWith(
               fontSize: 25,
               color: AppColors.primary,
@@ -138,28 +227,20 @@ class ProductDetailScreen extends StatelessWidget {
           const SizedBox(height: 10),
           Row(
             children: [
-              _buildTag(
-                'Kondisi: Bekas',
-              ),
+              _buildTag('Kondisi: ${product.condition}'),
               const SizedBox(width: 6),
-              _buildTag(
-                'Kategori: Pakaian',
-              ),
+              _buildTag('Kategori: ${product.categoryName}'),
             ],
           ),
           const SizedBox(height: 12),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(
-                Icons.location_on,
-                color: AppColors.primary,
-                size: 17,
-              ),
+              const Icon(Icons.location_on, color: AppColors.primary, size: 17),
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
-                  'Lokasi COD: Area ${product.location} / Kampus UB',
+                  'Lokasi COD: Area ${product.locationName} / Kampus UB',
                   style: AppTextStyles.caption.copyWith(
                     fontSize: 11,
                     color: AppColors.textSecondary,
@@ -170,7 +251,9 @@ class ProductDetailScreen extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'Dijual jas almamater UB ukuran L. Kondisi masih sangat bagus 90%, jarang dipakai karena angkatan online. Sudah di-laundry dan siap pakai. Cocok untuk mahasiswa yang belum dapat jas almamater atau yang butuh jas tambahan.',
+            product.description.isEmpty
+                ? 'Belum ada deskripsi produk.'
+                : product.description,
             style: AppTextStyles.caption.copyWith(
               fontSize: 11,
               height: 1.35,
@@ -184,17 +267,10 @@ class ProductDetailScreen extends StatelessWidget {
 
   Widget _buildTag(String text) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 8,
-        vertical: 5,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: AppColors.textSecondary.withValues(
-          alpha: 0.55,
-        ),
-        borderRadius: BorderRadius.circular(
-          AppRadius.lg,
-        ),
+        color: AppColors.textSecondary.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
       child: Text(
         text,
@@ -208,23 +284,14 @@ class ProductDetailScreen extends StatelessWidget {
 
   Widget _buildSellerCard() {
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
       child: Container(
         height: 64,
-        padding: const EdgeInsets.symmetric(
-          horizontal: 8,
-          vertical: 8,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: BorderRadius.circular(
-            AppRadius.md,
-          ),
-          border: Border.all(
-            color: AppColors.border,
-          ),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(color: AppColors.border),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.08),
@@ -255,14 +322,20 @@ class ProductDetailScreen extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    'Cantika Prameshti (FEB ‘22)',
-                    style: AppTextStyles.bodyMedium.copyWith(
-                      fontSize: 13,
-                    ),
+                    product.sellerName.isEmpty
+                        ? 'Pengguna Reloved'
+                        : product.sellerName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.bodyMedium.copyWith(fontSize: 13),
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Trust Score: 95/100 (Excellent)',
+                    product.sellerFaculty.isEmpty
+                        ? product.sellerCampus
+                        : product.sellerFaculty,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: AppTextStyles.caption.copyWith(
                       color: AppColors.success,
                       fontSize: 10,
@@ -278,13 +351,9 @@ class ProductDetailScreen extends StatelessWidget {
                 onPressed: () {},
                 style: OutlinedButton.styleFrom(
                   padding: EdgeInsets.zero,
-                  side: const BorderSide(
-                    color: AppColors.primary,
-                  ),
+                  side: const BorderSide(color: AppColors.primary),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(
-                      AppRadius.md,
-                    ),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                   ),
                 ),
                 child: Text(
@@ -302,4 +371,15 @@ class ProductDetailScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+String formatPrice(double price) {
+  final value = price.toInt().toString();
+
+  final formatted = value.replaceAllMapped(
+    RegExp(r'\B(?=(\d{3})+(?!\d))'),
+    (match) => '.',
+  );
+
+  return 'Rp $formatted';
 }
