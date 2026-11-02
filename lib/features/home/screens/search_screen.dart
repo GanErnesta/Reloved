@@ -420,6 +420,12 @@ class _SearchScreenState extends State<SearchScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Image.asset(
+              'assets/images/imgsearch.png',
+              width: 180,
+              height: 180,
+              fit: BoxFit.contain,
+            ),
             const SizedBox(height: 20),
             Text(
               'Yah, barangnya belum ada nih',
