@@ -1,15 +1,363 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_radius.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../transaction/services/cart_service.dart';
+import '../../transaction/widgets/transaction_confirmation_modal.dart';
 import '../models/product.dart';
+import '../services/product_service.dart';
 
-class ProductDetailScreen extends StatelessWidget {
+class ProductDetailScreen extends StatefulWidget {
   final Product product;
 
   const ProductDetailScreen({super.key, required this.product});
+
+  @override
+  State<ProductDetailScreen> createState() => _ProductDetailScreenState();
+}
+
+class _ProductDetailScreenState extends State<ProductDetailScreen>
+    with TickerProviderStateMixin {
+  final CartService _cartService = CartService();
+  final ProductService _productService = ProductService();
+
+  late Product _product;
+  late AnimationController _cartAnimationController;
+
+  final GlobalKey _productImageKey = GlobalKey();
+  final GlobalKey _cartButtonKey = GlobalKey();
+
+  bool _isAddingToCart = false;
+  bool _isLoadingProduct = false;
+
+  Product get product => _product;
+
+  @override
+  void initState() {
+    super.initState();
+    _product = widget.product;
+
+    _cartAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 750),
+    );
+
+    _refreshProduct();
+  }
+
+  @override
+  void dispose() {
+    _cartAnimationController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _playAddToCartAnimation() async {
+    if (!mounted) return;
+
+    final sourceContext = _productImageKey.currentContext;
+    final targetContext = _cartButtonKey.currentContext;
+
+    if (sourceContext == null || targetContext == null) return;
+
+    final sourceObject = sourceContext.findRenderObject();
+    final targetObject = targetContext.findRenderObject();
+
+    if (sourceObject is! RenderBox || targetObject is! RenderBox) return;
+    if (!sourceObject.hasSize || !targetObject.hasSize) return;
+
+    final sourcePosition = sourceObject.localToGlobal(Offset.zero);
+    final targetPosition = targetObject.localToGlobal(Offset.zero);
+
+    final startRect = sourcePosition & sourceObject.size;
+    final targetCenter = targetPosition + targetObject.size.center(Offset.zero);
+
+    final endRect = Rect.fromCenter(
+      center: targetCenter,
+      width: 30,
+      height: 34,
+    );
+
+    final overlay = Overlay.of(context);
+    late final OverlayEntry entry;
+
+    entry = OverlayEntry(
+      builder: (overlayContext) {
+        final progress = Curves.easeInOutCubic.transform(
+          _cartAnimationController.value,
+        );
+        final currentRect = Rect.lerp(startRect, endRect, progress)!;
+        final opacity = (1 - (progress * 0.15)).clamp(0.0, 1.0).toDouble();
+
+        return Positioned.fromRect(
+          rect: currentRect,
+          child: IgnorePointer(
+            child: Opacity(
+              opacity: opacity,
+              child: Material(
+                color: Colors.transparent,
+                elevation: 10,
+                borderRadius: BorderRadius.circular(12),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.network(
+                    product.imageUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) {
+                      return Container(
+                        color: AppColors.background,
+                        alignment: Alignment.center,
+                        child: const Icon(
+                          Icons.shopping_bag_outlined,
+                          color: AppColors.primary,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    void updateOverlay() {
+      entry.markNeedsBuild();
+    }
+
+    overlay.insert(entry);
+    _cartAnimationController.addListener(updateOverlay);
+
+    try {
+      await _cartAnimationController.forward(from: 0);
+    } finally {
+      _cartAnimationController.removeListener(updateOverlay);
+      entry.remove();
+      _cartAnimationController.reset();
+    }
+  }
+
+  Future<void> _saveCartSelection(Map<String, dynamic> data) async {
+    final transactionType = data['transactionType'] as String;
+    final quantity = data['quantity'] as int;
+
+    try {
+      final latestProduct = await _productService.getProductById(product.id);
+
+      if (!mounted) return;
+
+      setState(() {
+        _product = latestProduct;
+      });
+
+      if (latestProduct.status != 'available') {
+        _showMessage('Produk sudah tidak tersedia');
+        return;
+      }
+
+      if (quantity < latestProduct.minPurchase ||
+          quantity > latestProduct.stock) {
+        _showMessage('Jumlah barang tidak sesuai dengan stok');
+        return;
+      }
+
+      await _cartService.addToCart(
+        latestProduct.id,
+        transactionType: transactionType,
+        quantity: quantity,
+        rentalDuration: data['duration'] as int?,
+        rentalPeriod: data['rentalPeriod'] as String?,
+      );
+
+      if (!mounted) return;
+
+      await _playAddToCartAnimation();
+
+      if (!mounted) return;
+
+      _showMessage(
+        transactionType == 'rent'
+            ? '$quantity barang berhasil ditambahkan sebagai sewa'
+            : '$quantity barang berhasil ditambahkan ke keranjang',
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      _showMessage('Gagal menambahkan produk ke keranjang');
+
+      debugPrint('ERROR SAVE CART: $e');
+    }
+  }
+
+  Future<void> _refreshProduct() async {
+    try {
+      final latestProduct = await _productService.getProductById(
+        widget.product.id,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _product = latestProduct;
+      });
+    } catch (e) {
+      debugPrint('ERROR REFRESH PRODUCT: $e');
+    }
+  }
+
+  Future<void> _addToCart() async {
+    final user = Supabase.instance.client.auth.currentUser;
+
+    if (user == null) {
+      _showMessage('Silakan login terlebih dahulu');
+      return;
+    }
+
+    if (_isAddingToCart) return;
+
+    setState(() {
+      _isAddingToCart = true;
+    });
+
+    try {
+      final latestProduct = await _productService.getProductById(product.id);
+
+      if (!mounted) return;
+
+      setState(() {
+        _product = latestProduct;
+      });
+
+      if (product.stock <= 0) {
+        _showMessage('Stok produk sedang habis');
+        return;
+      }
+
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        barrierColor: Colors.black.withValues(alpha: 0.45),
+        enableDrag: true,
+        isDismissible: true,
+        builder: (sheetContext) {
+          return TransactionConfirmationModal(
+            product: product,
+            initialMode: product.transactionType == 'rent'
+                ? TransactionMode.rent
+                : TransactionMode.sale,
+            onConfirm: (data) {
+              _saveCartSelection(data);
+            },
+          );
+        },
+      );
+    } catch (e) {
+      if (mounted) {
+        _showMessage('Gagal mengambil data produk');
+      }
+      debugPrint('ERROR ADD TO CART: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isAddingToCart = false;
+        });
+      }
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColors.textPrimary,
+        ),
+      );
+  }
+
+  Future<void> _showTransactionModal() async {
+    final user = Supabase.instance.client.auth.currentUser;
+
+    if (user == null) {
+      _showMessage('Silakan login terlebih dahulu');
+      return;
+    }
+
+    if (_isLoadingProduct) return;
+
+    setState(() {
+      _isLoadingProduct = true;
+    });
+
+    try {
+      final latestProduct = await _productService.getProductById(
+        widget.product.id,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _product = latestProduct;
+      });
+
+      if (product.stock <= 0) {
+        _showMessage('Maaf, stok produk sedang habis');
+        return;
+      }
+
+      if (product.transactionType == 'rent' &&
+          (product.rentalPrice == null || product.rentalPrice! <= 0)) {
+        _showMessage('Harga sewa produk belum tersedia');
+        return;
+      }
+
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        barrierColor: Colors.black.withValues(alpha: 0.45),
+        enableDrag: true,
+        isDismissible: true,
+        builder: (context) {
+          return TransactionConfirmationModal(
+            product: product,
+            initialMode: product.transactionType == 'rent'
+                ? TransactionMode.rent
+                : TransactionMode.sale,
+            onConfirm: (data) {
+              final mode = data['transactionType'];
+              final quantity = data['quantity'];
+              final totalPrice = data['totalPrice'];
+
+              _showMessage(
+                mode == 'rent'
+                    ? 'Konfirmasi sewa: $quantity barang, total ${formatPrice((totalPrice as num).toDouble())}'
+                    : 'Konfirmasi pembelian: $quantity barang, total ${formatPrice((totalPrice as num).toDouble())}',
+              );
+            },
+          );
+        },
+      );
+    } catch (e) {
+      if (mounted) {
+        _showMessage('Gagal mengambil data produk terbaru');
+      }
+
+      debugPrint('ERROR SHOW TRANSACTION: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingProduct = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,105 +390,115 @@ class ProductDetailScreen extends StatelessWidget {
   }
 
   Widget _buildBottomActionBar() {
-  return SafeArea(
-    top: false,
-    child: Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 16,
-        vertical: 12,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(18),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.10),
-            blurRadius: 12,
-            offset: const Offset(0, -3),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 42,
-            height: 42,
-            child: OutlinedButton(
-              onPressed: () {},
-              style: OutlinedButton.styleFrom(
-                padding: EdgeInsets.zero,
-                backgroundColor: const Color(0xFFF4E5E7),
-                side: const BorderSide(
-                  color: AppColors.primary,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              child: const Icon(
-                Icons.chat_bubble_outline,
-                color: AppColors.primary,
-                size: 20,
-              ),
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.10),
+              blurRadius: 12,
+              offset: const Offset(0, -3),
             ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: SizedBox(
+          ],
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 42,
               height: 42,
               child: OutlinedButton(
                 onPressed: () {},
                 style: OutlinedButton.styleFrom(
-                  backgroundColor: const Color(0xFFE8B7BE),
-                  side: const BorderSide(
-                    color: AppColors.primary,
-                  ),
+                  padding: EdgeInsets.zero,
+                  backgroundColor: const Color(0xFFF4E5E7),
+                  side: const BorderSide(color: AppColors.primary),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                child: Text(
-                  '+ Keranjang',
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
-                  ),
+                child: const Icon(
+                  Icons.chat_bubble_outline,
+                  color: AppColors.primary,
+                  size: 20,
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: SizedBox(
-              height: 42,
-              child: ElevatedButton(
-                onPressed: () {},
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+            const SizedBox(width: 8),
+            Expanded(
+              child: SizedBox(
+                key: _cartButtonKey,
+                height: 42,
+                child: OutlinedButton(
+                  onPressed: _isAddingToCart ? null : _addToCart,
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE8B7BE),
+                    side: const BorderSide(color: AppColors.primary),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
-                ),
-                child: Text(
-                  'Beli',
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
-                  ),
+                  child: _isAddingToCart
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(
+                          '+ Keranjang',
+                          style: AppTextStyles.bodyMedium.copyWith(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                          ),
+                        ),
                 ),
               ),
             ),
-          ),
-        ],
+            const SizedBox(width: 8),
+            Expanded(
+              child: SizedBox(
+                height: 42,
+                child: ElevatedButton(
+                  onPressed: _isLoadingProduct ? null : _showTransactionModal,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    disabledBackgroundColor: AppColors.primary.withValues(
+                      alpha: 0.6,
+                    ),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: _isLoadingProduct
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          'Beli',
+                          style: AppTextStyles.bodyMedium.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                          ),
+                        ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildHeader(BuildContext context) {
     return SizedBox(
@@ -166,6 +524,7 @@ class ProductDetailScreen extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
       child: Container(
+        key: _productImageKey,
         width: double.infinity,
         height: 455,
         padding: const EdgeInsets.all(26),
@@ -229,7 +588,7 @@ class ProductDetailScreen extends StatelessWidget {
             children: [
               _buildTag('Kondisi: ${product.condition}'),
               const SizedBox(width: 6),
-              _buildTag('Kategori: ${product.categoryName}'),
+              Flexible(child: _buildTag('Kategori: ${product.categoryName}')),
             ],
           ),
           const SizedBox(height: 12),

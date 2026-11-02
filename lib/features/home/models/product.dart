@@ -12,6 +12,14 @@ class Product {
   final double? longitude;
   final String status;
   final DateTime createdAt;
+
+  final String transactionType;
+  final int stock;
+  final int minPurchase;
+  final double? rentalPrice;
+  final String? rentalPeriod;
+  final int minRentalDuration;
+
   final String sellerName;
   final String sellerEmail;
   final String sellerNim;
@@ -34,6 +42,12 @@ class Product {
     this.longitude,
     required this.status,
     required this.createdAt,
+    this.transactionType = 'sale',
+    this.stock = 1,
+    this.minPurchase = 1,
+    this.rentalPrice,
+    this.rentalPeriod,
+    this.minRentalDuration = 1,
     required this.sellerName,
     required this.sellerEmail,
     required this.sellerNim,
@@ -61,6 +75,14 @@ class Product {
       longitude: (map['longitude'] as num?)?.toDouble(),
       status: map['status'] ?? 'available',
       createdAt: DateTime.parse(map['created_at'] as String),
+
+      transactionType: map['transaction_type'] ?? 'sale',
+      stock: (map['stock'] as num?)?.toInt() ?? 1,
+      minPurchase: (map['min_purchase'] as num?)?.toInt() ?? 1,
+      rentalPrice: (map['rental_price'] as num?)?.toDouble(),
+      rentalPeriod: map['rental_period'],
+      minRentalDuration: (map['min_rental_duration'] as num?)?.toInt() ?? 1,
+
       sellerName: profile['nama'] ?? '',
       sellerEmail: profile['email'] ?? '',
       sellerNim: profile['nim'] ?? '',

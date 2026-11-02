@@ -85,6 +85,86 @@ class ProductService {
     }).toList();
   }
 
+  Future<List<Product>> searchProducts(String keyword) async {
+    final query = keyword.trim();
+
+    if (query.isEmpty) return [];
+
+    final searchPattern = '%$query%';
+
+    final responses = await Future.wait([
+      _supabase
+          .from('products')
+          .select('''
+          *,
+          profiles (
+            id,
+            nama,
+            email,
+            nim,
+            kampus,
+            fakultas,
+            program_studi
+          ),
+          categories (
+            id,
+            name
+          )
+        ''')
+          .eq('status', 'available')
+          .or('name.ilike.$searchPattern,description.ilike.$searchPattern')
+          .order('created_at', ascending: false),
+
+      _supabase.from('categories').select('id').ilike('name', searchPattern),
+    ]);
+
+    final productResults = responses[0] as List;
+    final categoryResults = responses[1] as List;
+
+    final categoryIds = categoryResults
+        .map((item) => item['id'].toString())
+        .toList();
+
+    List<dynamic> categoryProducts = [];
+
+    if (categoryIds.isNotEmpty) {
+      categoryProducts = await _supabase
+          .from('products')
+          .select('''
+          *,
+          profiles (
+            id,
+            nama,
+            email,
+            nim,
+            kampus,
+            fakultas,
+            program_studi
+          ),
+          categories (
+            id,
+            name
+          )
+        ''')
+          .eq('status', 'available')
+          .inFilter('category_id', categoryIds);
+    }
+
+    final Map<String, dynamic> uniqueProducts = {};
+
+    for (final item in [...productResults, ...categoryProducts]) {
+      uniqueProducts[item['id'].toString()] = item;
+    }
+
+    final products = uniqueProducts.values
+        .map((item) => Product.fromMap(item))
+        .toList();
+
+    products.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    return products;
+  }
+
   Future<Product> getProductById(String id) async {
     final response = await _supabase
         .from('products')
