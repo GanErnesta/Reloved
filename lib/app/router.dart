@@ -11,8 +11,9 @@ import '../features/auth/screens/verify_otp_screen.dart';
 import '../features/auth/screens/forgot_password_screen.dart';
 import '../features/auth/screens/reset_password_screen.dart';
 
-import '../features/profile/screens/profile_setup_screen.dart';
 import '../features/profile/screens/profile_screen.dart';
+import '../features/auth/screens/verification_success_screen.dart';
+import '../features/profile/screens/profile_recovery_screen.dart';
 
 final router = GoRouter(
   initialLocation: '/',
@@ -42,10 +43,18 @@ final router = GoRouter(
     GoRoute(
       path: '/verify-email',
       builder: (context, state) {
-        final email = state.extra as String;
+        final data = state.extra as Map<String, dynamic>;
 
-        return VerifyOtpScreen(email: email);
+        return VerifyOtpScreen(
+          email: data['email'] as String,
+          userData: Map<String, dynamic>.from(data['userData'] as Map),
+        );
       },
+    ),
+
+    GoRoute(
+      path: '/verification-success',
+      builder: (_, __) => const VerificationSuccessScreen(),
     ),
 
     /// Forgot Password
@@ -60,16 +69,14 @@ final router = GoRouter(
       builder: (_, __) => const ResetPasswordScreen(),
     ),
 
-    /// Setup Profile
-    GoRoute(
-      path: '/setup-profile',
-      builder: (context, state) => const ProfileSetupScreen(),
-    ),
-
     /// Home
     GoRoute(path: '/home', builder: (_, __) => const MainScreen()),
 
     /// Profile
     GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
+    GoRoute(
+      path: '/profile-recovery',
+      builder: (context, state) => const ProfileRecoveryScreen(),
+    ),
   ],
 );

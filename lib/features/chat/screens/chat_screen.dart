@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_spacing.dart';
-import '../../../core/constants/app_text_styles.dart';
 import '../widgets/chat_item.dart';
 import '../widgets/chat_search_bar.dart';
 import 'chat_room_screen.dart';

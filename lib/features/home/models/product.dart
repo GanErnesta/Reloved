@@ -7,6 +7,7 @@ class Product {
   final double price;
   final String condition;
   final String imageUrl;
+  final List<String> imageUrls;
   final String locationName;
   final double? latitude;
   final double? longitude;
@@ -37,6 +38,7 @@ class Product {
     required this.price,
     required this.condition,
     required this.imageUrl,
+    this.imageUrls = const [],
     required this.locationName,
     this.latitude,
     this.longitude,
@@ -60,6 +62,7 @@ class Product {
   factory Product.fromMap(Map<String, dynamic> map) {
     final profile = map['profiles'] as Map<String, dynamic>? ?? {};
     final category = map['categories'] as Map<String, dynamic>? ?? {};
+    
 
     return Product(
       id: map['id'] as String,
@@ -70,6 +73,7 @@ class Product {
       price: (map['price'] as num).toDouble(),
       condition: map['condition'] ?? '',
       imageUrl: map['image_url'] ?? '',
+      imageUrls: List<String>.from(map['image_urls'] ?? []),
       locationName: map['location_name'] ?? '',
       latitude: (map['latitude'] as num?)?.toDouble(),
       longitude: (map['longitude'] as num?)?.toDouble(),

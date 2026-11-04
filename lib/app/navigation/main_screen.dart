@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../features/home/screens/home_screen.dart';
-import '../../features/profile/screens/profile_screen.dart';
-import '../../features/sell/screens/sell_screen.dart';
 import '../../features/chat/screens/chat_screen.dart';
+import '../../features/orders/screens/orders_screen.dart';
+import '../../features/profile/screens/profile_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -18,14 +18,17 @@ class _MainScreenState extends State<MainScreen> {
   final List<Widget> pages = const [
     HomeScreen(),
     ChatScreen(),
-    SellScreen(),
+    OrdersScreen(),
     ProfileScreen(),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(index: currentIndex, children: pages),
+      body: IndexedStack(
+        index: currentIndex,
+        children: pages,
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: currentIndex,
         destinations: const [
@@ -40,8 +43,8 @@ class _MainScreenState extends State<MainScreen> {
             label: 'Chat',
           ),
           NavigationDestination(
-            icon: Icon(Icons.trolley),
-            selectedIcon: Icon(Icons.trolley),
+            icon: Icon(Icons.shopping_bag_outlined),
+            selectedIcon: Icon(Icons.shopping_bag),
             label: 'Order',
           ),
           NavigationDestination(

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/constants/app_colors.dart';
 import '../widgets/chat_bubble.dart';
 import '../widgets/chat_input.dart';
 import '../widgets/chat_room_header.dart';
