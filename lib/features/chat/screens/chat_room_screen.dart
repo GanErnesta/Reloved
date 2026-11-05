@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/constants/app_colors.dart';
 import '../widgets/chat_bubble.dart';
 import '../widgets/chat_input.dart';
 import '../widgets/chat_room_header.dart';
@@ -8,6 +7,7 @@ import '../widgets/product_chat_card.dart';
 import '../widgets/safe_meeting_point.dart';
 
 class ChatRoomScreen extends StatefulWidget {
+  final String conversationId;
   final String sellerName;
   final String productName;
   final String productPrice;
@@ -15,6 +15,7 @@ class ChatRoomScreen extends StatefulWidget {
 
   const ChatRoomScreen({
     super.key,
+    required this.conversationId,
     required this.sellerName,
     required this.productName,
     required this.productPrice,
