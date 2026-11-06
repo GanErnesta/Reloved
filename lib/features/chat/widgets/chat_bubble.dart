@@ -19,40 +19,22 @@ class ChatBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Align(
-      alignment:
-          isMe ? Alignment.centerRight : Alignment.centerLeft,
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        constraints: const BoxConstraints(
-          maxWidth: 285,
-        ),
+        constraints: const BoxConstraints(maxWidth: 285),
         margin: EdgeInsets.only(
           left: isMe ? 70 : 12,
           right: isMe ? 12 : 70,
           bottom: 8,
         ),
-        padding: const EdgeInsets.fromLTRB(
-          16,
-          10,
-          14,
-          7,
-        ),
+        padding: const EdgeInsets.fromLTRB(16, 10, 14, 7),
         decoration: BoxDecoration(
-          color: isMe
-              ? const Color(0xFFFCE4B8)
-              : AppColors.surface,
+          color: isMe ? const Color(0xFFFCE4B8) : AppColors.surface,
           borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(
-              AppRadius.lg,
-            ),
-            topRight: const Radius.circular(
-              AppRadius.lg,
-            ),
-            bottomLeft: Radius.circular(
-              isMe ? AppRadius.lg : 4,
-            ),
-            bottomRight: Radius.circular(
-              isMe ? 4 : AppRadius.lg,
-            ),
+            topLeft: const Radius.circular(AppRadius.lg),
+            topRight: const Radius.circular(AppRadius.lg),
+            bottomLeft: Radius.circular(isMe ? AppRadius.lg : 4),
+            bottomRight: Radius.circular(isMe ? 4 : AppRadius.lg),
           ),
         ),
         child: Column(
@@ -62,10 +44,7 @@ class ChatBubble extends StatelessWidget {
               alignment: Alignment.centerLeft,
               child: Text(
                 message,
-                style: AppTextStyles.body.copyWith(
-                  fontSize: 14,
-                  height: 1.3,
-                ),
+                style: AppTextStyles.body.copyWith(fontSize: 14, height: 1.3),
               ),
             ),
             const SizedBox(height: 3),
@@ -83,7 +62,7 @@ class ChatBubble extends StatelessWidget {
                   const SizedBox(width: 4),
                   const Icon(
                     Icons.done_all,
-                    color: Color(0xFFFFA000),
+                    color: AppColors.primary,
                     size: 15,
                   ),
                 ],

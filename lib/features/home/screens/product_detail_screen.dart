@@ -1,18 +1,496 @@
+  
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_radius.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
-import '../widgets/product_card.dart';
 
-class ProductDetailScreen extends StatelessWidget {
-  final ProductItem product;
+import '../../transaction/services/cart_service.dart';
+import '../../transaction/widgets/transaction_confirmation_modal.dart';
+
+import '../models/product.dart';
+import '../services/product_service.dart';
+
+import '../../chat/services/chat_service.dart';
+import '../../chat/screens/chat_room_screen.dart';
+
+class ProductDetailScreen extends StatefulWidget {
+  final Product product;
 
   const ProductDetailScreen({
     super.key,
     required this.product,
   });
+
+  @override
+  State<ProductDetailScreen> createState() =>
+      _ProductDetailScreenState();
+}
+
+class _ProductDetailScreenState extends State<ProductDetailScreen>
+    with TickerProviderStateMixin {
+  final ChatService _chatService = ChatService();
+  final CartService _cartService = CartService();
+  final ProductService _productService = ProductService();
+
+  bool _isOpeningChat = false;
+
+  late Product _product;
+  late AnimationController _cartAnimationController;
+
+  final GlobalKey _productImageKey = GlobalKey();
+  final GlobalKey _cartButtonKey = GlobalKey();
+
+  bool _isAddingToCart = false;
+  bool _isLoadingProduct = false;
+
+  Product get product => _product;
+
+  bool get isOwnProduct {
+    final currentUser =
+        Supabase.instance.client.auth.currentUser;
+
+    return currentUser != null &&
+        currentUser.id == product.sellerId;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+
+    _product = widget.product;
+
+    _cartAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 750),
+    );
+
+    _refreshProduct();
+  }
+
+  @override
+  void dispose() {
+    _cartAnimationController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _playAddToCartAnimation() async {
+    if (!mounted) return;
+
+    final sourceContext = _productImageKey.currentContext;
+    final targetContext = _cartButtonKey.currentContext;
+
+    if (sourceContext == null || targetContext == null) return;
+
+    final sourceObject = sourceContext.findRenderObject();
+    final targetObject = targetContext.findRenderObject();
+
+    if (sourceObject is! RenderBox ||
+        targetObject is! RenderBox) {
+      return;
+    }
+
+    if (!sourceObject.hasSize || !targetObject.hasSize) return;
+
+    final sourcePosition =
+        sourceObject.localToGlobal(Offset.zero);
+
+    final targetPosition =
+        targetObject.localToGlobal(Offset.zero);
+
+    final startRect = sourcePosition & sourceObject.size;
+
+    final targetCenter =
+        targetPosition + targetObject.size.center(Offset.zero);
+
+    final endRect = Rect.fromCenter(
+      center: targetCenter,
+      width: 30,
+      height: 34,
+    );
+
+    final overlay = Overlay.of(context);
+
+    late final OverlayEntry entry;
+
+    entry = OverlayEntry(
+      builder: (overlayContext) {
+        final progress =
+            Curves.easeInOutCubic.transform(
+          _cartAnimationController.value,
+        );
+
+        final currentRect =
+            Rect.lerp(startRect, endRect, progress)!;
+
+        final opacity = (1 - (progress * 0.15))
+            .clamp(0.0, 1.0)
+            .toDouble();
+
+        return Positioned.fromRect(
+          rect: currentRect,
+          child: IgnorePointer(
+            child: Opacity(
+              opacity: opacity,
+              child: Material(
+                color: Colors.transparent,
+                elevation: 10,
+                borderRadius: BorderRadius.circular(12),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.network(
+                    product.imageUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) {
+                      return Container(
+                        color: AppColors.background,
+                        alignment: Alignment.center,
+                        child: const Icon(
+                          Icons.shopping_bag_outlined,
+                          color: AppColors.primary,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    void updateOverlay() {
+      entry.markNeedsBuild();
+    }
+
+    overlay.insert(entry);
+    _cartAnimationController.addListener(updateOverlay);
+
+    try {
+      await _cartAnimationController.forward(from: 0);
+    } finally {
+      _cartAnimationController.removeListener(updateOverlay);
+      entry.remove();
+      _cartAnimationController.reset();
+    }
+  }
+
+  Future<void> _refreshProduct() async {
+    try {
+      final latestProduct =
+          await _productService.getProductById(
+        widget.product.id,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _product = latestProduct;
+      });
+    } catch (e) {
+      debugPrint('ERROR REFRESH PRODUCT: $e');
+    }
+  }
+
+  Future<void> _saveCartSelection(
+    Map<String, dynamic> data,
+  ) async {
+    final transactionType =
+        data['transactionType'] as String;
+
+    final quantity = data['quantity'] as int;
+
+    try {
+      final latestProduct =
+          await _productService.getProductById(product.id);
+
+      if (!mounted) return;
+
+      setState(() {
+        _product = latestProduct;
+      });
+
+      if (latestProduct.status != 'available') {
+        _showMessage('Produk sudah tidak tersedia');
+        return;
+      }
+
+      if (quantity < latestProduct.minPurchase ||
+          quantity > latestProduct.stock) {
+        _showMessage(
+          'Jumlah barang tidak sesuai dengan stok',
+        );
+        return;
+      }
+
+      await _cartService.addToCart(
+        latestProduct.id,
+        transactionType: transactionType,
+        quantity: quantity,
+        rentalDuration: data['duration'] as int?,
+        rentalPeriod: data['rentalPeriod'] as String?,
+      );
+
+      if (!mounted) return;
+
+      await _playAddToCartAnimation();
+
+      if (!mounted) return;
+
+      _showMessage(
+        transactionType == 'rent'
+            ? '$quantity barang berhasil ditambahkan sebagai sewa'
+            : '$quantity barang berhasil ditambahkan ke keranjang',
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      _showMessage(
+        'Gagal menambahkan produk ke keranjang',
+      );
+
+      debugPrint('ERROR SAVE CART: $e');
+    }
+  }
+
+  Future<void> _addToCart() async {
+    final user =
+        Supabase.instance.client.auth.currentUser;
+
+    if (user == null) {
+      _showMessage('Silakan login terlebih dahulu');
+      return;
+    }
+
+    if (_isAddingToCart) return;
+
+    // Pengguna tidak bisa membeli produknya sendiri.
+    if (isOwnProduct) {
+      _showMessage(
+        'Kamu tidak dapat membeli produk sendiri',
+      );
+      return;
+    }
+
+    setState(() {
+      _isAddingToCart = true;
+    });
+
+    try {
+      final latestProduct =
+          await _productService.getProductById(product.id);
+
+      if (!mounted) return;
+
+      setState(() {
+        _product = latestProduct;
+      });
+
+      if (product.stock <= 0) {
+        _showMessage('Stok produk sedang habis');
+        return;
+      }
+
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        barrierColor: Colors.black.withValues(alpha: 0.45),
+        enableDrag: true,
+        isDismissible: true,
+        builder: (sheetContext) {
+          return TransactionConfirmationModal(
+            product: product,
+            initialMode: product.transactionType == 'rent'
+                ? TransactionMode.rent
+                : TransactionMode.sale,
+            onConfirm: (data) {
+              _saveCartSelection(data);
+            },
+          );
+        },
+      );
+    } catch (e) {
+      if (mounted) {
+        _showMessage('Gagal mengambil data produk');
+      }
+
+      debugPrint('ERROR ADD TO CART: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isAddingToCart = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _openChat() async {
+    if (_isOpeningChat || isOwnProduct) return;
+
+    final user =
+        Supabase.instance.client.auth.currentUser;
+
+    if (user == null) {
+      _showMessage('Silakan login terlebih dahulu');
+      return;
+    }
+
+    if (user.id == product.sellerId) {
+      _showMessage(
+        'Kamu tidak dapat chat dengan akun sendiri',
+      );
+      return;
+    }
+
+    setState(() {
+      _isOpeningChat = true;
+    });
+
+    try {
+      final conversation =
+          await _chatService.createOrGetConversation(
+        sellerId: product.sellerId,
+        productId: product.id,
+      );
+
+      if (!mounted) return;
+
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ChatRoomScreen(
+            conversationId: conversation.id,
+            sellerName: product.sellerName,
+            productName: product.name,
+            productPrice: formatPrice(product.price),
+            productImage: product.imageUrl,
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint('ERROR OPEN CHAT: $e');
+
+      if (mounted) {
+        _showMessage('Gagal membuka percakapan');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isOpeningChat = false;
+        });
+      }
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColors.textPrimary,
+        ),
+      );
+  }
+
+  Future<void> _showTransactionModal() async {
+    final user =
+        Supabase.instance.client.auth.currentUser;
+
+    if (user == null) {
+      _showMessage('Silakan login terlebih dahulu');
+      return;
+    }
+
+    if (isOwnProduct) {
+      _showMessage(
+        'Kamu tidak dapat membeli produk sendiri',
+      );
+      return;
+    }
+
+    if (_isLoadingProduct) return;
+
+    setState(() {
+      _isLoadingProduct = true;
+    });
+
+    try {
+      final latestProduct =
+          await _productService.getProductById(
+        widget.product.id,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _product = latestProduct;
+      });
+
+      if (product.stock <= 0) {
+        _showMessage(
+          'Maaf, stok produk sedang habis',
+        );
+        return;
+      }
+
+      if (product.transactionType == 'rent' &&
+          (product.rentalPrice == null ||
+              product.rentalPrice! <= 0)) {
+        _showMessage(
+          'Harga sewa produk belum tersedia',
+        );
+        return;
+      }
+
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        barrierColor: Colors.black.withValues(alpha: 0.45),
+        enableDrag: true,
+        isDismissible: true,
+        builder: (context) {
+          return TransactionConfirmationModal(
+            product: product,
+            initialMode: product.transactionType == 'rent'
+                ? TransactionMode.rent
+                : TransactionMode.sale,
+            onConfirm: (data) {
+              final mode = data['transactionType'];
+              final quantity = data['quantity'];
+              final totalPrice = data['totalPrice'];
+
+              _showMessage(
+                mode == 'rent'
+                    ? 'Konfirmasi sewa: $quantity barang, total ${formatPrice((totalPrice as num).toDouble())}'
+                    : 'Konfirmasi pembelian: $quantity barang, total ${formatPrice((totalPrice as num).toDouble())}',
+              );
+            },
+          );
+        },
+      );
+    } catch (e) {
+      if (mounted) {
+        _showMessage(
+          'Gagal mengambil data produk terbaru',
+        );
+      }
+
+      debugPrint('ERROR SHOW TRANSACTION: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingProduct = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,6 +514,139 @@ class ProductDetailScreen extends StatelessWidget {
                     const SizedBox(height: AppSpacing.md),
                     _buildSellerCard(),
                   ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: _buildBottomActionBar(),
+    );
+  }
+
+  Widget _buildBottomActionBar() {
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 12,
+        ),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(18),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.10),
+              blurRadius: 12,
+              offset: const Offset(0, -3),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Tombol chat hanya untuk produk orang lain.
+            if (!isOwnProduct) ...[
+              SizedBox(
+                width: 42,
+                height: 42,
+                child: OutlinedButton(
+                  onPressed:
+                      _isOpeningChat ? null : _openChat,
+                  style: OutlinedButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    backgroundColor: const Color(0xFFF4E5E7),
+                    side: const BorderSide(
+                      color: AppColors.primary,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.chat_bubble_outline,
+                    color: AppColors.primary,
+                    size: 20,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+
+            Expanded(
+              child: SizedBox(
+                key: _cartButtonKey,
+                height: 42,
+                child: OutlinedButton(
+                  onPressed: _isAddingToCart || isOwnProduct
+                      ? null
+                      : _addToCart,
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE8B7BE),
+                    side: const BorderSide(
+                      color: AppColors.primary,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: _isAddingToCart
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : Text(
+                          '+ Keranjang',
+                          style: AppTextStyles.bodyMedium.copyWith(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                          ),
+                        ),
+                ),
+              ),
+            ),
+
+            const SizedBox(width: 8),
+
+            Expanded(
+              child: SizedBox(
+                height: 42,
+                child: ElevatedButton(
+                  onPressed: _isLoadingProduct || isOwnProduct
+                      ? null
+                      : _showTransactionModal,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    disabledBackgroundColor:
+                        AppColors.primary.withValues(alpha: 0.6),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: _isLoadingProduct
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          'Beli',
+                          style: AppTextStyles.bodyMedium.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                          ),
+                        ),
                 ),
               ),
             ),
@@ -73,6 +684,7 @@ class ProductDetailScreen extends StatelessWidget {
         horizontal: AppSpacing.md,
       ),
       child: Container(
+        key: _productImageKey,
         width: double.infinity,
         height: 455,
         padding: const EdgeInsets.all(26),
@@ -126,28 +738,36 @@ class ProductDetailScreen extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
+
           const SizedBox(height: 12),
+
           Text(
-            product.price,
+            formatPrice(product.price),
             style: AppTextStyles.heading.copyWith(
               fontSize: 25,
               color: AppColors.primary,
               fontWeight: FontWeight.w500,
             ),
           ),
+
           const SizedBox(height: 10),
+
           Row(
             children: [
               _buildTag(
-                'Kondisi: Bekas',
+                'Kondisi: ${product.condition}',
               ),
               const SizedBox(width: 6),
-              _buildTag(
-                'Kategori: Pakaian',
+              Flexible(
+                child: _buildTag(
+                  'Kategori: ${product.categoryName}',
+                ),
               ),
             ],
           ),
+
           const SizedBox(height: 12),
+
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -159,7 +779,7 @@ class ProductDetailScreen extends StatelessWidget {
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
-                  'Lokasi COD: Area ${product.location} / Kampus UB',
+                  'Lokasi COD: Area ${product.locationName} / Kampus UB',
                   style: AppTextStyles.caption.copyWith(
                     fontSize: 11,
                     color: AppColors.textSecondary,
@@ -168,9 +788,13 @@ class ProductDetailScreen extends StatelessWidget {
               ),
             ],
           ),
+
           const SizedBox(height: 12),
+
           Text(
-            'Dijual jas almamater UB ukuran L. Kondisi masih sangat bagus 90%, jarang dipakai karena angkatan online. Sudah di-laundry dan siap pakai. Cocok untuk mahasiswa yang belum dapat jas almamater atau yang butuh jas tambahan.',
+            product.description.isEmpty
+                ? 'Belum ada deskripsi produk.'
+                : product.description,
             style: AppTextStyles.caption.copyWith(
               fontSize: 11,
               height: 1.35,
@@ -189,12 +813,8 @@ class ProductDetailScreen extends StatelessWidget {
         vertical: 5,
       ),
       decoration: BoxDecoration(
-        color: AppColors.textSecondary.withValues(
-          alpha: 0.55,
-        ),
-        borderRadius: BorderRadius.circular(
-          AppRadius.lg,
-        ),
+        color: AppColors.textSecondary.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
       child: Text(
         text,
@@ -219,9 +839,7 @@ class ProductDetailScreen extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: BorderRadius.circular(
-            AppRadius.md,
-          ),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           border: Border.all(
             color: AppColors.border,
           ),
@@ -248,21 +866,33 @@ class ProductDetailScreen extends StatelessWidget {
                 size: 25,
               ),
             ),
+
             const SizedBox(width: 12),
+
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    'Cantika Prameshti (FEB ‘22)',
+                    product.sellerName.isEmpty
+                        ? 'Pengguna Reloved'
+                        : product.sellerName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: AppTextStyles.bodyMedium.copyWith(
                       fontSize: 13,
                     ),
                   ),
+
                   const SizedBox(height: 2),
+
                   Text(
-                    'Trust Score: 95/100 (Excellent)',
+                    product.sellerFaculty.isEmpty
+                        ? product.sellerCampus
+                        : product.sellerFaculty,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: AppTextStyles.caption.copyWith(
                       color: AppColors.success,
                       fontSize: 10,
@@ -271,35 +901,49 @@ class ProductDetailScreen extends StatelessWidget {
                 ],
               ),
             ),
-            SizedBox(
-              width: 76,
-              height: 32,
-              child: OutlinedButton(
-                onPressed: () {},
-                style: OutlinedButton.styleFrom(
-                  padding: EdgeInsets.zero,
-                  side: const BorderSide(
-                    color: AppColors.primary,
+
+            // Tombol chat hanya muncul jika bukan pemilik produk.
+            if (!isOwnProduct)
+              SizedBox(
+                width: 76,
+                height: 32,
+                child: OutlinedButton(
+                  onPressed:
+                      _isOpeningChat ? null : _openChat,
+                  style: OutlinedButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    side: const BorderSide(
+                      color: AppColors.primary,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(
+                        AppRadius.md,
+                      ),
+                    ),
                   ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(
-                      AppRadius.md,
+                  child: Text(
+                    'Chat',
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.primary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ),
-                child: Text(
-                  'Chat',
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.primary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
               ),
-            ),
           ],
         ),
       ),
     );
   }
+}
+String formatPrice(double price) {
+  final value = price.toInt().toString();
+
+  final formatted = value.replaceAllMapped(
+    RegExp(r'\B(?=(\d{3})+(?!\d))'),
+    (match) => '.',
+  );
+
+  return 'Rp $formatted';
 }

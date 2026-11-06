@@ -1,61 +1,78 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_radius.dart';
-import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 
 class InformationCard extends StatelessWidget {
   final String title;
   final String description;
+  final Color startColor;
+  final Color endColor;
+  final String imagePath;
 
   const InformationCard({
     super.key,
     required this.title,
     required this.description,
+    required this.startColor,
+    required this.endColor,
+    required this.imagePath,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 84,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(
-          color: AppColors.border,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.07),
-            blurRadius: 3,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return SizedBox(
+      height: 160,
+      child: Stack(
+        clipBehavior: Clip.none,
         children: [
-          Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: AppTextStyles.bodyMedium.copyWith(
-              color: AppColors.primary,
-              fontSize: 13,
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [startColor, endColor],
+              ),
+              borderRadius: BorderRadius.circular(AppRadius.lg),
             ),
           ),
-          const SizedBox(height: 3),
-          Expanded(
-            child: Text(
-              description,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.caption.copyWith(
-                fontSize: 11,
-                height: 1.25,
-              ),
+          Positioned(
+            left: 10,
+            top: 10,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: AppTextStyles.title.copyWith(
+                    color: const Color(0xFF66451F),
+                    fontSize: 19,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                SizedBox(
+                  width: 125,
+                  child: Text(
+                    description,
+                    style: AppTextStyles.caption.copyWith(
+                      color: const Color(0xFF33291F),
+                      fontSize: 11,
+                      height: 1.3,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            right: -5,
+            bottom: 0,
+            child: Image.asset(
+              imagePath,
+              width: 105,
+              height: 105,
+              fit: BoxFit.contain,
             ),
           ),
         ],
@@ -69,28 +86,29 @@ class InformationSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.fromLTRB(
-        AppSpacing.md,
-        8,
-        AppSpacing.md,
-        0,
-      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
       child: Row(
         children: [
           Expanded(
             child: InformationCard(
-              title: 'Sewa Alat Praktikum',
+              title: 'Sewa Barang',
               description:
                   'Sewa harian aman dengan sistem deposit jaminan terproteksi.',
+              startColor: const Color(0xFFFFD99A),
+              endColor: const Color(0xFFEBA33E),
+              imagePath: 'assets/images/imgtas.png',
             ),
           ),
-          SizedBox(width: 12),
+          const SizedBox(width: 14),
           Expanded(
             child: InformationCard(
-              title: 'Komunitas Sirkular UB',
+              title: 'Komunitas UB',
               description:
                   'Tempat berkumpulnya mahasiswa untuk barter dan diskusi material.',
+              startColor: const Color(0xFF9CB9EE),
+              endColor: const Color(0xFF2858B5),
+              imagePath: 'assets/images/imgub.png',
             ),
           ),
         ],

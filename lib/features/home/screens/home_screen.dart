@@ -1,5 +1,10 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
 
+import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
+
+import 'maba_products_screen.dart';
 import '../widgets/category_menu.dart';
 import '../widgets/home_header.dart';
 import '../widgets/home_search_bar.dart';
@@ -18,20 +23,297 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _currentIndex = 0;
+  bool _isLocationDetected = false;
+  final Geocoding _geocoding = Geocoding();
+
+  String _locationName = 'Aktifkan Lokasi';
+  bool _isLoadingLocation = false;
+  bool _isUpdatingLocation = false;
+
+  StreamSubscription<Position>? _positionSubscription;
+
+  double? _lastLatitude;
+  double? _lastLongitude;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkExistingLocationPermission();
+  }
+
+  Future<void> _checkExistingLocationPermission() async {
+    try {
+      final permission = await Geolocator.checkPermission();
+
+      if (!mounted) return;
+
+      if (permission == LocationPermission.always ||
+          permission == LocationPermission.whileInUse) {
+        await _requestLocationPermission();
+      }
+    } catch (e) {
+      debugPrint('ERROR MEMERIKSA IZIN: $e');
+    }
+  }
+
+  Future<void> _requestLocationPermission() async {
+    if (!mounted || _isLoadingLocation) return;
+
+    String stage = 'Memulai proses lokasi';
+
+    setState(() {
+      _isLoadingLocation = true;
+      _locationName = 'Mencari lokasi...';
+    });
+
+    try {
+      stage = 'Memeriksa GPS';
+
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+
+      debugPrint('GPS AKTIF: $serviceEnabled');
+
+      if (!serviceEnabled) {
+        throw Exception('GPS perangkat belum aktif');
+      }
+
+      stage = 'Memeriksa izin lokasi';
+
+      LocationPermission permission = await Geolocator.checkPermission();
+
+      debugPrint('STATUS IZIN: $permission');
+
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (!mounted) return;
+
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        if (permission == LocationPermission.deniedForever) {
+          await Geolocator.openAppSettings();
+        }
+
+        throw Exception('Izin lokasi tidak diberikan');
+      }
+
+      stage = 'Mengambil koordinat GPS';
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 30),
+        ),
+      );
+
+      debugPrint('LATITUDE: ${position.latitude}');
+      debugPrint('LONGITUDE: ${position.longitude}');
+
+      if (!mounted) return;
+
+      stage = 'Mengubah koordinat menjadi alamat';
+
+      await _updateLocationName(position, force: true);
+
+      if (!mounted) return;
+
+      await _positionSubscription?.cancel();
+
+      _positionSubscription =
+          Geolocator.getPositionStream(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.high,
+              distanceFilter: 100,
+            ),
+          ).listen(
+            (Position newPosition) async {
+              try {
+                await _updateLocationName(newPosition);
+              } catch (e) {
+                debugPrint('ERROR UPDATE LOKASI: $e');
+              }
+            },
+            onError: (error) {
+              debugPrint('ERROR LOCATION STREAM: $error');
+            },
+          );
+
+      debugPrint('LOCATION TRACKING AKTIF');
+    } catch (e, stackTrace) {
+      debugPrint('================================');
+      debugPrint('TAHAP GAGAL: $stage');
+      debugPrint('DETAIL ERROR: $e');
+      debugPrint('================================');
+      debugPrintStack(stackTrace: stackTrace);
+
+      if (!mounted) return;
+
+      setState(() {
+        _locationName = 'Lokasi Gagal';
+        _isLoadingLocation = false;
+      });
+    }
+  }
+
+  Future<void> _updateLocationName(
+    Position position, {
+    bool force = false,
+  }) async {
+    if (!mounted || _isUpdatingLocation) return;
+
+    if (!force && _lastLatitude != null && _lastLongitude != null) {
+      final distance = Geolocator.distanceBetween(
+        _lastLatitude!,
+        _lastLongitude!,
+        position.latitude,
+        position.longitude,
+      );
+
+      if (distance < 100) return;
+    }
+
+    _isUpdatingLocation = true;
+
+    if (mounted) {
+      setState(() {
+        _isLoadingLocation = true;
+      });
+    }
+
+    try {
+      final List<Placemark> placemarks = await _geocoding
+          .placemarkFromCoordinates(position.latitude, position.longitude);
+
+      if (!mounted) return;
+
+      if (placemarks.isEmpty) {
+        throw Exception('Alamat tidak ditemukan');
+      }
+
+      final place = placemarks.first;
+
+      final String kelurahan = place.subLocality?.trim() ?? '';
+
+      final String kecamatan = place.subAdministrativeArea?.trim() ?? '';
+
+      final List<String> locationParts = [kelurahan, kecamatan];
+
+      final String location = locationParts
+          .where((item) => item.isNotEmpty)
+          .toSet()
+          .join(', ');
+
+      if (location.isEmpty) {
+        throw Exception('Nama kelurahan dan kecamatan tidak tersedia');
+      }
+
+      _lastLatitude = position.latitude;
+      _lastLongitude = position.longitude;
+
+      setState(() {
+        _locationName = location;
+        _isLoadingLocation = false;
+        _isLocationDetected = true;
+      });
+
+      debugPrint('KELURAHAN: $kelurahan');
+      debugPrint('KECAMATAN: $kecamatan');
+      debugPrint('LOKASI BERHASIL: $location');
+    } catch (e) {
+      debugPrint('ERROR GEOCODING: $e');
+
+      if (mounted) {
+        setState(() {
+          _isLoadingLocation = false;
+
+          if (_lastLatitude == null) {
+            _locationName = 'Lokasi Gagal';
+            _isLocationDetected = false;
+          }
+        });
+      }
+
+      rethrow;
+    } finally {
+      _isUpdatingLocation = false;
+    }
+    try {
+      final List<Placemark> placemarks = await _geocoding
+          .placemarkFromCoordinates(position.latitude, position.longitude);
+
+      if (!mounted) return;
+
+      if (placemarks.isEmpty) {
+        throw Exception('Alamat tidak ditemukan');
+      }
+
+      final place = placemarks.first;
+
+      final String kelurahan = place.subLocality?.trim() ?? '';
+
+      final String kecamatan = place.subAdministrativeArea?.trim() ?? '';
+
+      final List<String> locationParts = [kelurahan, kecamatan];
+
+      final String location = locationParts
+          .where((item) => item.isNotEmpty)
+          .toSet()
+          .join(', ');
+
+      if (location.isEmpty) {
+        throw Exception('Nama kelurahan dan kecamatan tidak tersedia');
+      }
+
+      _lastLatitude = position.latitude;
+      _lastLongitude = position.longitude;
+
+      setState(() {
+        _locationName = location;
+        _isLoadingLocation = false;
+      });
+
+      debugPrint('LOKASI BERHASIL DIPERBARUI: $location');
+    } catch (e) {
+      debugPrint('ERROR GEOCODING: $e');
+
+      if (mounted) {
+        setState(() {
+          _isLoadingLocation = false;
+
+          if (_lastLatitude == null) {
+            _locationName = 'Lokasi Gagal';
+          }
+        });
+      }
+
+      rethrow;
+    } finally {
+      _isUpdatingLocation = false;
+    }
+  }
 
   void _showLocationModal() {
+    if (_isLocationDetected || _isLoadingLocation) return;
+
     showDialog(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.35),
-      builder: (context) {
+      builder: (dialogContext) {
         return LocationPermissionModal(
-          onAllowLocation: () {
-            Navigator.of(context).pop();
+          onAllowLocation: () async {
+            Navigator.of(dialogContext).pop();
+            await _requestLocationPermission();
           },
         );
       },
     );
+  }
+
+  @override
+  void dispose() {
+    _positionSubscription?.cancel();
+    super.dispose();
   }
 
   @override
@@ -42,11 +324,34 @@ class _HomeScreenState extends State<HomeScreen> {
         child: CustomScrollView(
           slivers: [
             SliverToBoxAdapter(
-              child: HomeHeader(onLocationTap: _showLocationModal),
+              child: HomeHeader(
+                onLocationTap: _showLocationModal,
+                locationName: _locationName,
+                isLoadingLocation: _isLoadingLocation,
+                isLocationDetected: _isLocationDetected,
+              ),
             ),
+
             const SliverToBoxAdapter(child: HomeSearchBar()),
+
             const SliverToBoxAdapter(child: CategoryMenu()),
-            const SliverToBoxAdapter(child: PromoBanner()),
+
+            const SliverToBoxAdapter(child: InformationSection()),
+
+            SliverToBoxAdapter(
+              child: PromoBanner(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const MabaProductsScreen(),
+                    ),
+                  );
+                },
+              ),
+            ),
+            SliverToBoxAdapter(child: _buildBundlingSection()),
+
             SliverToBoxAdapter(
               child: ProductSection(
                 onSeeAll: () {
@@ -59,8 +364,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
               ),
             ),
-            SliverToBoxAdapter(child: _buildBundlingSection()),
-            const SliverToBoxAdapter(child: InformationSection()),
+
             const SliverToBoxAdapter(child: SizedBox(height: 24)),
           ],
         ),
@@ -110,7 +414,9 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
+
           const SizedBox(height: 12),
+
           SizedBox(
             height: 106,
             child: ListView.separated(

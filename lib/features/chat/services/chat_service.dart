@@ -19,10 +19,6 @@ class ChatService {
 
   String get currentUserId => _currentUserId;
 
-  // ==========================================
-  // CREATE OR GET CONVERSATION
-  // ==========================================
-
   Future<ChatModel> createOrGetConversation({
     required String sellerId,
     required String productId,
@@ -58,10 +54,6 @@ class ChatService {
     return ChatModel.fromJson(result);
   }
 
-  // ==========================================
-  // FETCH CONVERSATIONS
-  // ==========================================
-
   Future<List<Map<String, dynamic>>> fetchConversations() async {
     final userId = _currentUserId;
 
@@ -69,23 +61,50 @@ class ChatService {
         .from('conversations')
         .select('''
           *,
-          buyer:profiles!conversations_buyer_id_fkey(
-            id, nama, foto_profil
-          ),
-          seller:profiles!conversations_seller_id_fkey(
-            id, nama, foto_profil
-          ),
           product:products!conversations_product_id_fkey(
-            id, name, price, image_url
+            id,
+            name,
+            price,
+            image_url
           )
         ''')
         .or('buyer_id.eq.$userId,seller_id.eq.$userId')
         .order('updated_at', ascending: false);
 
+    if (result.isEmpty) return [];
+
+    final profileIds = <String>{};
+
+    for (final item in result) {
+      profileIds.add(item['buyer_id'].toString());
+      profileIds.add(item['seller_id'].toString());
+    }
+
+    final profileResult = await _client
+        .from('public_profiles')
+        .select('''
+          id,
+          nama,
+          foto_profil,
+          kampus,
+          fakultas,
+          program_studi
+        ''')
+        .inFilter('id', profileIds.toList());
+
+    final Map<String, Map<String, dynamic>> profiles = {};
+
+    for (final profile in profileResult) {
+      profiles[profile['id'].toString()] =
+          Map<String, dynamic>.from(profile);
+    }
+
     final conversations = <Map<String, dynamic>>[];
 
     for (final item in result) {
       final conversationId = item['id'];
+      final buyerId = item['buyer_id'].toString();
+      final sellerId = item['seller_id'].toString();
 
       final lastMessage = await _client
           .from('messages')
@@ -103,7 +122,9 @@ class ChatService {
           .eq('is_read', false);
 
       conversations.add({
-        ...item,
+        ...Map<String, dynamic>.from(item),
+        'buyer': profiles[buyerId],
+        'seller': profiles[sellerId],
         'last_message': lastMessage,
         'unread_count': unreadMessages.length,
       });
@@ -112,23 +133,19 @@ class ChatService {
     return conversations;
   }
 
-  // ==========================================
-  // FETCH MESSAGES
-  // ==========================================
-
-  Future<List<MessageModel>> fetchMessages(String conversationId) async {
+  Future<List<MessageModel>> fetchMessages(
+    String conversationId,
+  ) async {
     final result = await _client
         .from('messages')
         .select()
         .eq('conversation_id', conversationId)
         .order('created_at', ascending: true);
 
-    return result.map((item) => MessageModel.fromJson(item)).toList();
+    return result
+        .map((item) => MessageModel.fromJson(item))
+        .toList();
   }
-
-  // ==========================================
-  // SEND MESSAGE
-  // ==========================================
 
   Future<MessageModel> sendMessage({
     required String conversationId,
@@ -153,11 +170,9 @@ class ChatService {
     return MessageModel.fromJson(result);
   }
 
-  // ==========================================
-  // REALTIME MESSAGES
-  // ==========================================
-
-  Stream<List<MessageModel>> watchMessages(String conversationId) {
+  Stream<List<MessageModel>> watchMessages(
+    String conversationId,
+  ) {
     return _client
         .from('messages')
         .stream(primaryKey: ['id'])
@@ -167,17 +182,17 @@ class ChatService {
               .map((item) => MessageModel.fromJson(item))
               .toList();
 
-          messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+          messages.sort(
+            (a, b) => a.createdAt.compareTo(b.createdAt),
+          );
 
           return messages;
         });
   }
 
-  // ==========================================
-  // MARK MESSAGES AS READ
-  // ==========================================
-
-  Future<void> markMessagesAsRead(String conversationId) async {
+  Future<void> markMessagesAsRead(
+    String conversationId,
+  ) async {
     final userId = _currentUserId;
 
     await _client

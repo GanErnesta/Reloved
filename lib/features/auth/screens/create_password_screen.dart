@@ -6,6 +6,9 @@ import '../../../core/constants/app_radius.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 
+import '../../profile/repository/profile_repository.dart';
+
+import '../services/auth_service.dart';
 import '../widgets/auth_logo.dart';
 import '../widgets/password_field.dart';
 import '../widgets/password_requirement.dart';
@@ -20,10 +23,13 @@ class CreatePasswordScreen extends StatefulWidget {
       _CreatePasswordScreenState();
 }
 
-class _CreatePasswordScreenState
-    extends State<CreatePasswordScreen> {
+class _CreatePasswordScreenState extends State<CreatePasswordScreen> {
   final passwordController = TextEditingController();
   final confirmController = TextEditingController();
+
+  final ProfileRepository _profileRepository = ProfileRepository();
+
+  bool isLoading = false;
 
   @override
   void dispose() {
@@ -42,6 +48,99 @@ class _CreatePasswordScreenState
         RegExp(r'[A-Z]').hasMatch(password) &&
         RegExp(r'[a-z]').hasMatch(password) &&
         RegExp(r'[0-9]').hasMatch(password);
+  }
+
+  bool isSamePasswordError(Object error) {
+    final message = error.toString().toLowerCase();
+
+    return message.contains('different from the old password') ||
+        message.contains('same password') ||
+        message.contains('should be different');
+  }
+
+  Future<void> createPassword() async {
+    if (isLoading) return;
+
+    if (!isValidPassword) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Password belum memenuhi syarat.'),
+        ),
+      );
+      return;
+    }
+
+    if (!isMatch) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Konfirmasi password tidak sesuai.'),
+        ),
+      );
+      return;
+    }
+
+    try {
+      setState(() => isLoading = true);
+
+      final user = AuthService.currentUser;
+
+      if (user == null) {
+        throw Exception(
+          'Sesi pengguna tidak ditemukan. Silakan verifikasi OTP kembali.',
+        );
+      }
+
+      debugPrint('========== REGISTRATION DEBUG ==========');
+      debugPrint('USER ID: ${user.id}');
+      debugPrint('USER EMAIL: ${user.email}');
+      debugPrint('USER METADATA: ${user.userMetadata}');
+      debugPrint('=========================================');
+
+      // 1. Simpan data pendaftaran ke tabel profiles.
+      // Proses ini menggunakan upsert sehingga aman dicoba ulang.
+      await _profileRepository.saveProfileFromMetadata();
+
+      debugPrint('PROFILE SAVED SUCCESSFULLY');
+
+      // 2. Simpan password ke Supabase Auth.
+      try {
+        await AuthService.setPassword(
+          passwordController.text,
+        );
+
+        debugPrint('PASSWORD SAVED SUCCESSFULLY');
+      } catch (e) {
+        // Jika password sudah berhasil disimpan pada percobaan
+        // sebelumnya, Supabase dapat menolak password yang sama.
+        if (isSamePasswordError(e)) {
+          debugPrint('PASSWORD ALREADY SET PREVIOUSLY');
+        } else {
+          rethrow;
+        }
+      }
+
+      if (!mounted) return;
+
+      // 3. Arahkan ke halaman verifikasi berhasil.
+      context.go('/verification-success');
+    } catch (e, stackTrace) {
+      debugPrint('CREATE PASSWORD ERROR: $e');
+      debugPrint('STACK TRACE: $stackTrace');
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().replaceFirst('Exception: ', ''),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
+    }
   }
 
   @override
@@ -66,15 +165,15 @@ class _CreatePasswordScreenState
                 padding: const EdgeInsets.all(AppSpacing.md),
                 decoration: BoxDecoration(
                   color: const Color(0xffF5E8EA),
-                  borderRadius:
-                      BorderRadius.circular(AppRadius.lg),
+                  borderRadius: BorderRadius.circular(
+                    AppRadius.lg,
+                  ),
                 ),
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      "Buat Password",
+                      'Buat Password',
                       style: AppTextStyles.title.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -83,7 +182,7 @@ class _CreatePasswordScreenState
                     const SizedBox(height: 8),
 
                     Text(
-                      "Buat password yang kuat untuk melindungi akunmu.",
+                      'Buat password yang kuat untuk melindungi akunmu.',
                       style: AppTextStyles.body,
                     ),
 
@@ -91,22 +190,18 @@ class _CreatePasswordScreenState
 
                     PasswordField(
                       controller: passwordController,
-                      label: "Password",
-                      hintText: "Masukkan password",
-                      onChanged: (_) {
-                        setState(() {});
-                      },
+                      label: 'Password',
+                      hintText: 'Masukkan password',
+                      onChanged: (_) => setState(() {}),
                     ),
 
                     const SizedBox(height: 18),
 
                     PasswordField(
                       controller: confirmController,
-                      label: "Konfirmasi Password",
-                      hintText: "Masukkan ulang password",
-                      onChanged: (_) {
-                        setState(() {});
-                      },
+                      label: 'Konfirmasi Password',
+                      hintText: 'Masukkan ulang password',
+                      onChanged: (_) => setState(() {}),
                     ),
 
                     const SizedBox(height: 24),
@@ -124,12 +219,10 @@ class _CreatePasswordScreenState
                     if (confirmController.text.isNotEmpty &&
                         !isMatch)
                       Padding(
-                        padding:
-                            const EdgeInsets.only(top: 12),
+                        padding: const EdgeInsets.only(top: 12),
                         child: Text(
-                          "Password tidak sama.",
-                          style:
-                              AppTextStyles.bodyMedium.copyWith(
+                          'Password tidak sama.',
+                          style: AppTextStyles.bodyMedium.copyWith(
                             color: AppColors.danger,
                           ),
                         ),
@@ -138,37 +231,11 @@ class _CreatePasswordScreenState
                     const SizedBox(height: 28),
 
                     PrimaryButton(
-                      text: "Buat Password",
-                      onPressed: () {
-                        if (!isValidPassword) {
-                          ScaffoldMessenger.of(context)
-                              .showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                "Password belum memenuhi syarat.",
-                              ),
-                            ),
-                          );
-                          return;
-                        }
-
-                        if (!isMatch) {
-                          ScaffoldMessenger.of(context)
-                              .showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                "Konfirmasi password tidak sesuai.",
-                              ),
-                            ),
-                          );
-                          return;
-                        }
-
-                        // TODO:
-                        // Simpan password ke Supabase
-
-                        context.go('/setup-profile');
-                      },
+                      text: 'Buat Password',
+                      loading: isLoading,
+                      onPressed: isLoading
+                          ? null
+                          : createPassword,
                     ),
                   ],
                 ),

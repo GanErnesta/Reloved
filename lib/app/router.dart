@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 
 import '../app/screens/splashscreen.dart';
@@ -11,8 +12,9 @@ import '../features/auth/screens/verify_otp_screen.dart';
 import '../features/auth/screens/forgot_password_screen.dart';
 import '../features/auth/screens/reset_password_screen.dart';
 
-import '../features/profile/screens/profile_setup_screen.dart';
 import '../features/profile/screens/profile_screen.dart';
+import '../features/auth/screens/verification_success_screen.dart';
+import '../features/profile/screens/profile_recovery_screen.dart';
 
 final router = GoRouter(
   initialLocation: '/',
@@ -42,10 +44,37 @@ final router = GoRouter(
     GoRoute(
       path: '/verify-email',
       builder: (context, state) {
-        final email = state.extra as String;
+        final extra = state.extra;
 
-        return VerifyOtpScreen(email: email);
+        debugPrint('VERIFY EMAIL EXTRA: $extra');
+        debugPrint('EXTRA TYPE: ${extra.runtimeType}');
+
+        if (extra is! Map) {
+          throw Exception('Data verifikasi tidak valid.');
+        }
+
+        final data = Map<String, dynamic>.from(extra);
+
+        debugPrint('EMAIL VALUE: ${data['email']}');
+        debugPrint('EMAIL TYPE: ${data['email'].runtimeType}');
+
+        final email = data['email'];
+        final userData = data['userData'];
+
+        if (email is! String || userData is! Map) {
+          throw Exception('Format data verifikasi tidak sesuai.');
+        }
+
+        return VerifyOtpScreen(
+          email: email,
+          userData: Map<String, dynamic>.from(userData),
+        );
       },
+    ),
+
+    GoRoute(
+      path: '/verification-success',
+      builder: (_, __) => const VerificationSuccessScreen(),
     ),
 
     /// Forgot Password
@@ -60,16 +89,14 @@ final router = GoRouter(
       builder: (_, __) => const ResetPasswordScreen(),
     ),
 
-    /// Setup Profile
-    GoRoute(
-      path: '/setup-profile',
-      builder: (context, state) => const ProfileSetupScreen(),
-    ),
-
     /// Home
     GoRoute(path: '/home', builder: (_, __) => const MainScreen()),
 
     /// Profile
     GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
+    GoRoute(
+      path: '/profile-recovery',
+      builder: (context, state) => const ProfileRecoveryScreen(),
+    ),
   ],
 );
