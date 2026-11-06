@@ -9,6 +9,7 @@ import '../../orders/screens/seller_manage_orders_screen.dart';
 
 import '../controllers/profile_controller.dart';
 import '../repository/profile_repository.dart';
+import 'edit_profile_screen.dart';
 
 import '../widgets/profile_header.dart';
 import '../widgets/trust_score_card.dart';
@@ -36,10 +37,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   void initState() {
     super.initState();
 
-    _tabController = TabController(
-      length: 2,
-      vsync: this,
-    );
+    _tabController = TabController(length: 2, vsync: this);
 
     _profileFuture = loadProfile();
   }
@@ -82,10 +80,7 @@ class _ProfileScreenState extends State<ProfileScreen>
 
       return recoveredProfile;
     } catch (e) {
-      recoveryError = e.toString().replaceFirst(
-        'Exception: ',
-        '',
-      );
+      recoveryError = e.toString().replaceFirst('Exception: ', '');
 
       debugPrint('PROFILE LOAD ERROR: $e');
 
@@ -114,20 +109,16 @@ class _ProfileScreenState extends State<ProfileScreen>
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Gagal logout: $e'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal logout: $e')));
     }
   }
 
   void _openSellerOrders() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const SellerManageOrdersScreen(),
-      ),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const SellerManageOrdersScreen()));
   }
 
   // ==========================================
@@ -137,9 +128,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   Widget _buildProfileNotFound() {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('Profil'),
-      ),
+      appBar: AppBar(title: const Text('Profil')),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(AppSpacing.lg),
@@ -156,10 +145,7 @@ class _ProfileScreenState extends State<ProfileScreen>
 
               const Text(
                 'Data profil belum tersedia',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
 
               const SizedBox(height: 8),
@@ -167,9 +153,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               Text(
                 recoveryError ?? 'Lengkapi informasi profilmu.',
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                ),
+                style: const TextStyle(color: AppColors.textSecondary),
               ),
 
               const SizedBox(height: 20),
@@ -193,9 +177,7 @@ class _ProfileScreenState extends State<ProfileScreen>
 
               const SizedBox(height: 8),
 
-              LogoutButton(
-                onPressed: _logout,
-              ),
+              LogoutButton(onPressed: _logout),
             ],
           ),
         ),
@@ -236,9 +218,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             const Text(
               'Postingan yang kamu buat akan muncul di sini.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: AppColors.textSecondary,
-              ),
+              style: TextStyle(color: AppColors.textSecondary),
             ),
           ],
         ),
@@ -253,9 +233,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   Widget _buildLoading() {
     return const Scaffold(
       backgroundColor: AppColors.background,
-      body: Center(
-        child: CircularProgressIndicator(),
-      ),
+      body: Center(child: CircularProgressIndicator()),
     );
   }
 
@@ -289,9 +267,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                     const SizedBox(height: 12),
                     const Text(
                       'Gagal memuat profil',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -337,12 +313,9 @@ class _ProfileScreenState extends State<ProfileScreen>
             actions: [
               IconButton(
                 onPressed: () {
-                  // TODO: Navigasi ke halaman pengaturan.
+                  context.push('/settings');
                 },
-                icon: const Icon(
-                  Icons.settings_outlined,
-                  size: 27,
-                ),
+                icon: const Icon(Icons.settings_outlined, size: 27),
               ),
               const SizedBox(width: 8),
             ],
@@ -356,22 +329,14 @@ class _ProfileScreenState extends State<ProfileScreen>
                     // ==================================
                     // PROFILE HEADER & TRUST SCORE
                     // ==================================
-
                     SliverToBoxAdapter(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(
-                          20,
-                          12,
-                          20,
-                          16,
-                        ),
+                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
 
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            ProfileHeader(
-                              profile: profile,
-                            ),
+                            ProfileHeader(profile: profile),
 
                             const SizedBox(height: 16),
 
@@ -380,8 +345,15 @@ class _ProfileScreenState extends State<ProfileScreen>
                               children: [
                                 Expanded(
                                   child: OutlinedButton(
-                                    onPressed: () {
-                                      // TODO: Edit Profil.
+                                    onPressed: () async {
+                                      final updated = await context.push<bool>(
+                                        '/edit-profile',
+                                        extra: profile,
+                                      );
+
+                                      if (updated == true && mounted) {
+                                        retryLoadProfile();
+                                      }
                                     },
                                     style: OutlinedButton.styleFrom(
                                       foregroundColor: AppColors.primary,
@@ -389,13 +361,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                                         color: AppColors.primary,
                                       ),
                                       shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(12),
+                                        borderRadius: BorderRadius.circular(12),
                                       ),
                                     ),
-                                    child: const Text(
-                                      'Edit Profil',
-                                    ),
+                                    child: const Text('Edit Profil'),
                                   ),
                                 ),
 
@@ -409,13 +378,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                                       foregroundColor: Colors.white,
                                       elevation: 0,
                                       shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(12),
+                                        borderRadius: BorderRadius.circular(12),
                                       ),
                                     ),
-                                    child: const Text(
-                                      'Kelola Pesanan',
-                                    ),
+                                    child: const Text('Kelola Pesanan'),
                                   ),
                                 ),
                               ],
@@ -433,15 +399,13 @@ class _ProfileScreenState extends State<ProfileScreen>
                     // ==================================
                     // TAB BAR
                     // ==================================
-
                     SliverPersistentHeader(
                       pinned: true,
                       delegate: _ProfileTabDelegate(
                         TabBar(
                           controller: _tabController,
                           labelColor: AppColors.textPrimary,
-                          unselectedLabelColor:
-                              AppColors.textPrimary,
+                          unselectedLabelColor: AppColors.textPrimary,
                           indicatorColor: AppColors.primary,
                           indicatorWeight: 3,
                           labelStyle: const TextStyle(
@@ -463,7 +427,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                     // ==================================
                     // TAB CONTENT
                     // ==================================
-
                     SliverFillRemaining(
                       hasScrollBody: true,
 
@@ -493,8 +456,7 @@ class _ProfileScreenState extends State<ProfileScreen>
 // TAB BAR DELEGATE
 // ==========================================
 
-class _ProfileTabDelegate
-    extends SliverPersistentHeaderDelegate {
+class _ProfileTabDelegate extends SliverPersistentHeaderDelegate {
   final TabBar tabBar;
 
   _ProfileTabDelegate(this.tabBar);
@@ -511,16 +473,11 @@ class _ProfileTabDelegate
     double shrinkOffset,
     bool overlapsContent,
   ) {
-    return Container(
-      color: const Color(0xFFFCFAFA),
-      child: tabBar,
-    );
+    return Container(color: const Color(0xFFFCFAFA), child: tabBar);
   }
 
   @override
-  bool shouldRebuild(
-    covariant _ProfileTabDelegate oldDelegate,
-  ) {
+  bool shouldRebuild(covariant _ProfileTabDelegate oldDelegate) {
     return oldDelegate.tabBar != tabBar;
   }
 }
