@@ -25,10 +25,7 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: currentIndex,
-        children: pages,
-      ),
+      body: IndexedStack(index: currentIndex, children: pages),
       bottomNavigationBar: NavigationBar(
         selectedIndex: currentIndex,
         destinations: const [

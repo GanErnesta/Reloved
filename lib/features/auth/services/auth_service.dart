@@ -92,12 +92,14 @@ class AuthService {
   /// Mengirim ulang OTP
   static Future<void> resendOtp(String email) async {
     try {
-      await _client.auth.resend(type: OtpType.signup, email: email);
+      await _client.auth.resend(type: OtpType.email, email: email);
 
       debugPrint('OTP berhasil dikirim ulang ke $email');
     } on AuthException catch (e) {
+      debugPrint('RESEND OTP AUTH ERROR: ${e.message}');
       throw Exception(e.message);
     } catch (e) {
+      debugPrint('RESEND OTP ERROR: $e');
       throw Exception(e.toString());
     }
   }

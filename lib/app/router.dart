@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 
 import '../app/screens/splashscreen.dart';
@@ -43,11 +44,30 @@ final router = GoRouter(
     GoRoute(
       path: '/verify-email',
       builder: (context, state) {
-        final data = state.extra as Map<String, dynamic>;
+        final extra = state.extra;
+
+        debugPrint('VERIFY EMAIL EXTRA: $extra');
+        debugPrint('EXTRA TYPE: ${extra.runtimeType}');
+
+        if (extra is! Map) {
+          throw Exception('Data verifikasi tidak valid.');
+        }
+
+        final data = Map<String, dynamic>.from(extra);
+
+        debugPrint('EMAIL VALUE: ${data['email']}');
+        debugPrint('EMAIL TYPE: ${data['email'].runtimeType}');
+
+        final email = data['email'];
+        final userData = data['userData'];
+
+        if (email is! String || userData is! Map) {
+          throw Exception('Format data verifikasi tidak sesuai.');
+        }
 
         return VerifyOtpScreen(
-          email: data['email'] as String,
-          userData: Map<String, dynamic>.from(data['userData'] as Map),
+          email: email,
+          userData: Map<String, dynamic>.from(userData),
         );
       },
     ),

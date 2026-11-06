@@ -60,17 +60,34 @@ class Product {
   });
 
   factory Product.fromMap(Map<String, dynamic> map) {
-    final profile = map['profiles'] as Map<String, dynamic>? ?? {};
-    final category = map['categories'] as Map<String, dynamic>? ?? {};
-    
+    final profileData = map['profiles'];
+    final categoryData = map['categories'];
+
+    final Map<String, dynamic> profile = profileData is Map<String, dynamic>
+        ? profileData
+        : profileData is List && profileData.isNotEmpty
+        ? Map<String, dynamic>.from(profileData.first)
+        : {};
+
+    final Map<String, dynamic> category = categoryData is Map<String, dynamic>
+        ? categoryData
+        : categoryData is List && categoryData.isNotEmpty
+        ? Map<String, dynamic>.from(categoryData.first)
+        : {};
+    print('========== DEBUG PRODUCT ==========');
+    print('Product ID: ${map['id']}');
+    print('Seller ID: ${map['seller_id']}');
+    print('Profile Data: ${map['profiles']}');
+    print('Seller Name: ${profile['nama']}');
+    print('===================================');
 
     return Product(
-      id: map['id'] as String,
-      sellerId: map['seller_id'] as String,
-      categoryId: map['category_id'] as String,
-      name: map['name'] as String,
+      id: map['id'].toString(),
+      sellerId: map['seller_id']?.toString() ?? '',
+      categoryId: map['category_id']?.toString() ?? '',
+      name: map['name'] ?? '',
       description: map['description'] ?? '',
-      price: (map['price'] as num).toDouble(),
+      price: (map['price'] as num?)?.toDouble() ?? 0,
       condition: map['condition'] ?? '',
       imageUrl: map['image_url'] ?? '',
       imageUrls: List<String>.from(map['image_urls'] ?? []),
@@ -78,7 +95,7 @@ class Product {
       latitude: (map['latitude'] as num?)?.toDouble(),
       longitude: (map['longitude'] as num?)?.toDouble(),
       status: map['status'] ?? 'available',
-      createdAt: DateTime.parse(map['created_at'] as String),
+      createdAt: DateTime.parse(map['created_at'].toString()),
 
       transactionType: map['transaction_type'] ?? 'sale',
       stock: (map['stock'] as num?)?.toInt() ?? 1,
@@ -87,13 +104,14 @@ class Product {
       rentalPeriod: map['rental_period'],
       minRentalDuration: (map['min_rental_duration'] as num?)?.toInt() ?? 1,
 
-      sellerName: profile['nama'] ?? '',
-      sellerEmail: profile['email'] ?? '',
-      sellerNim: profile['nim'] ?? '',
-      sellerCampus: profile['kampus'] ?? '',
-      sellerFaculty: profile['fakultas'] ?? '',
-      sellerStudyProgram: profile['program_studi'] ?? '',
-      categoryName: category['name'] ?? '',
+      sellerName: profile['nama']?.toString() ?? '',
+      sellerEmail: profile['email']?.toString() ?? '',
+      sellerNim: profile['nim']?.toString() ?? '',
+      sellerCampus: profile['kampus']?.toString() ?? '',
+      sellerFaculty: profile['fakultas']?.toString() ?? '',
+      sellerStudyProgram: profile['program_studi']?.toString() ?? '',
+
+      categoryName: category['name']?.toString() ?? '',
     );
   }
 }

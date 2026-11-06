@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
@@ -9,6 +10,7 @@ class ChatItem extends StatelessWidget {
   final String message;
   final String date;
   final String? avatarUrl;
+  final int unreadCount;
   final VoidCallback? onTap;
 
   const ChatItem({
@@ -17,6 +19,7 @@ class ChatItem extends StatelessWidget {
     required this.message,
     required this.date,
     this.avatarUrl,
+    this.unreadCount = 0,
     this.onTap,
   });
 
@@ -82,6 +85,34 @@ class ChatItem extends StatelessWidget {
                           ),
                         ),
                       ),
+                      if (unreadCount > 0) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          constraints: const BoxConstraints(
+                            minWidth: 20,
+                            minHeight: 20,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          alignment: Alignment.center,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF9F283A),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            unreadCount > 99
+                                ? '99+'
+                                : unreadCount.toString(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ],

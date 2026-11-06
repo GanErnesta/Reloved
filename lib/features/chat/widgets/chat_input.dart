@@ -7,27 +7,22 @@ import '../../../core/constants/app_text_styles.dart';
 class ChatInput extends StatelessWidget {
   final TextEditingController controller;
   final VoidCallback? onAdd;
-  final VoidCallback? onEmoji;
+  final VoidCallback? onSend;
+  final bool isSending;
 
   const ChatInput({
     super.key,
     required this.controller,
     this.onAdd,
-    this.onEmoji,
+    this.onSend,
+    this.isSending = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(
-        16,
-        8,
-        16,
-        12,
-      ),
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-      ),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      decoration: const BoxDecoration(color: AppColors.surface),
       child: Row(
         children: [
           GestureDetector(
@@ -42,41 +37,68 @@ class ChatInput extends StatelessWidget {
           Expanded(
             child: Container(
               height: 48,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
                 color: const Color(0xFFF2DDE1),
-                borderRadius: BorderRadius.circular(
-                  AppRadius.xl,
-                ),
+                borderRadius: BorderRadius.circular(AppRadius.xl),
               ),
+              alignment: Alignment.center,
               child: TextField(
                 controller: controller,
-                style: AppTextStyles.body.copyWith(
-                  fontSize: 13,
-                ),
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => onSend?.call(),
+                maxLines: 1,
+                cursorColor: AppColors.primary,
+                style: AppTextStyles.body.copyWith(fontSize: 13),
                 decoration: InputDecoration(
                   hintText: 'Mulai percakapan...',
                   hintStyle: AppTextStyles.body.copyWith(
-                    color: AppColors.textSecondary.withValues(
-                      alpha: 0.55,
-                    ),
+                    color: AppColors.textSecondary.withValues(alpha: 0.55),
                     fontSize: 13,
                   ),
                   border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  disabledBorder: InputBorder.none,
+                  errorBorder: InputBorder.none,
+                  focusedErrorBorder: InputBorder.none,
+                  isDense: true,
+                  contentPadding: EdgeInsets.zero,
+                  filled: false,
                 ),
               ),
             ),
           ),
           const SizedBox(width: 8),
-          GestureDetector(
-            onTap: onEmoji,
-            child: const Icon(
-              Icons.sentiment_satisfied_alt_outlined,
-              color: AppColors.primary,
-              size: 32,
-            ),
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: controller,
+            builder: (context, value, child) {
+              final canSend = value.text.trim().isNotEmpty && !isSending;
+
+              return GestureDetector(
+                onTap: canSend ? onSend : null,
+                child: SizedBox(
+                  width: 36,
+                  height: 36,
+                  child: Center(
+                    child: isSending
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.primary,
+                            ),
+                          )
+                        : Icon(
+                            Icons.send_rounded,
+                            color: AppColors.primary,
+                            size: 23,
+                          ),
+                  ),
+                ),
+              );
+            },
           ),
         ],
       ),

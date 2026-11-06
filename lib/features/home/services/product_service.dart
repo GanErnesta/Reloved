@@ -16,6 +16,51 @@ class ProductService {
   static const int _maxImages = 5;
 
   // ============================================================
+  // ATTACH PUBLIC SELLER PROFILES
+  // ============================================================
+
+  Future<List<Product>> _mapProductsWithProfiles(
+    List<dynamic> rows,
+  ) async {
+    final products = rows
+        .map((row) => Map<String, dynamic>.from(row as Map))
+        .toList();
+
+    if (products.isEmpty) return [];
+
+    final sellerIds = products
+        .map((item) => item['seller_id']?.toString() ?? '')
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList();
+
+    if (sellerIds.isEmpty) {
+      return products.map(Product.fromMap).toList();
+    }
+
+    final profileResponse = await _supabase
+        .from('public_profiles')
+        .select('id, nama, kampus, fakultas, program_studi')
+        .inFilter('id', sellerIds);
+
+    final Map<String, Map<String, dynamic>> profileMap = {};
+
+    for (final profile in profileResponse) {
+      final data = Map<String, dynamic>.from(profile);
+
+      profileMap[data['id'].toString()] = data;
+    }
+
+    for (final product in products) {
+      final sellerId = product['seller_id']?.toString() ?? '';
+
+      product['profiles'] = profileMap[sellerId] ?? {};
+    }
+
+    return products.map(Product.fromMap).toList();
+  }
+
+  // ============================================================
   // UPLOAD PRODUCT IMAGES
   // ============================================================
 
@@ -74,8 +119,6 @@ class ProductService {
         final fileName =
             '${DateTime.now().microsecondsSinceEpoch}_$i.$extension';
 
-        // Folder pertama harus sama dengan ID user
-        // sesuai Storage Policy yang sudah dibuat.
         final filePath = '${user.id}/$fileName';
 
         await _supabase.storage.from(_bucketName).uploadBinary(
@@ -98,20 +141,21 @@ class ProductService {
 
       return imageUrls;
     } catch (e) {
-      // Hapus foto yang sudah terunggah jika ada kegagalan.
       if (uploadedPaths.isNotEmpty) {
         try {
           await _supabase.storage
               .from(_bucketName)
               .remove(uploadedPaths);
-        } catch (_) {
-          // Pertahankan error upload utama.
-        }
+        } catch (_) {}
       }
 
       rethrow;
     }
   }
+
+  // ============================================================
+  // CREATE PRODUCT
+  // ============================================================
 
   Future<String> createProduct({
     required String categoryId,
@@ -148,7 +192,6 @@ class ProductService {
       throw Exception('Pilih 1 sampai 5 foto produk.');
     }
 
-    // Samakan nilai transaksi dari UI dengan database.
     final dbTransactionType = switch (transactionType) {
       'jual' => 'sale',
       'sewa' => 'rent',
@@ -178,10 +221,11 @@ class ProductService {
     List<String> uploadedPaths = [];
 
     try {
-      // 1. Upload foto ke Supabase Storage.
-      final imageUrls = await uploadProductImages(images: images);
+      // 1. Upload foto produk.
+      final imageUrls = await uploadProductImages(
+        images: images,
+      );
 
-      // Simpan path file untuk keperluan rollback.
       uploadedPaths = imageUrls.map((url) {
         return url.split('/$_bucketName/').last;
       }).toList();
@@ -203,7 +247,7 @@ class ProductService {
         'location_name': locationName,
       };
 
-      // 3. Tambahkan informasi sewa jika transaksi Sewa.
+      // 3. Tambahkan informasi sewa.
       if (dbTransactionType == 'rent') {
         productData.addAll({
           'rental_price': rentalPrice,
@@ -212,7 +256,7 @@ class ProductService {
         });
       }
 
-      // 4. Simpan produk ke database.
+      // 4. Simpan produk.
       final response = await _supabase
           .from('products')
           .insert(productData)
@@ -221,15 +265,13 @@ class ProductService {
 
       return response['id'].toString();
     } catch (e) {
-      // 5. Rollback foto jika penyimpanan produk gagal.
+      // 5. Rollback foto jika penyimpanan gagal.
       if (uploadedPaths.isNotEmpty) {
         try {
           await _supabase.storage
               .from(_bucketName)
               .remove(uploadedPaths);
-        } catch (_) {
-          // Pertahankan error utama.
-        }
+        } catch (_) {}
       }
 
       rethrow;
@@ -245,15 +287,6 @@ class ProductService {
         .from('products')
         .select('''
           *,
-          profiles (
-            id,
-            nama,
-            email,
-            nim,
-            kampus,
-            fakultas,
-            program_studi
-          ),
           categories (
             id,
             name
@@ -263,7 +296,7 @@ class ProductService {
         .order('created_at', ascending: false)
         .limit(10);
 
-    return response.map<Product>((item) => Product.fromMap(item)).toList();
+    return _mapProductsWithProfiles(response);
   }
 
   // ============================================================
@@ -275,15 +308,6 @@ class ProductService {
         .from('products')
         .select('''
           *,
-          profiles (
-            id,
-            nama,
-            email,
-            nim,
-            kampus,
-            fakultas,
-            program_studi
-          ),
           categories (
             id,
             name
@@ -292,9 +316,7 @@ class ProductService {
         .eq('status', 'available')
         .order('created_at', ascending: false);
 
-    final products = response
-        .map<Product>((item) => Product.fromMap(item))
-        .toList();
+    final products = await _mapProductsWithProfiles(response);
 
     const mabaKeywords = [
       'almamater',
@@ -317,7 +339,9 @@ class ProductService {
       final searchableText =
           '${product.name} ${product.categoryName}'.toLowerCase();
 
-      return mabaKeywords.any((keyword) => searchableText.contains(keyword));
+      return mabaKeywords.any(
+        (keyword) => searchableText.contains(keyword),
+      );
     }).toList();
   }
 
@@ -337,15 +361,6 @@ class ProductService {
           .from('products')
           .select('''
             *,
-            profiles (
-              id,
-              nama,
-              email,
-              nim,
-              kampus,
-              fakultas,
-              program_studi
-            ),
             categories (
               id,
               name
@@ -355,7 +370,10 @@ class ProductService {
           .or('name.ilike.$searchPattern,description.ilike.$searchPattern')
           .order('created_at', ascending: false),
 
-      _supabase.from('categories').select('id').ilike('name', searchPattern),
+      _supabase
+          .from('categories')
+          .select('id')
+          .ilike('name', searchPattern),
     ]);
 
     final productResults = responses[0] as List;
@@ -372,15 +390,6 @@ class ProductService {
           .from('products')
           .select('''
             *,
-            profiles (
-              id,
-              nama,
-              email,
-              nim,
-              kampus,
-              fakultas,
-              program_studi
-            ),
             categories (
               id,
               name
@@ -396,11 +405,13 @@ class ProductService {
       uniqueProducts[item['id'].toString()] = item;
     }
 
-    final products = uniqueProducts.values
-        .map((item) => Product.fromMap(item))
-        .toList();
+    final products = await _mapProductsWithProfiles(
+      uniqueProducts.values.toList(),
+    );
 
-    products.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    products.sort(
+      (a, b) => b.createdAt.compareTo(a.createdAt),
+    );
 
     return products;
   }
@@ -414,15 +425,6 @@ class ProductService {
         .from('products')
         .select('''
           *,
-          profiles (
-            id,
-            nama,
-            email,
-            nim,
-            kampus,
-            fakultas,
-            program_studi
-          ),
           categories (
             id,
             name
@@ -431,7 +433,9 @@ class ProductService {
         .eq('id', id)
         .single();
 
-    return Product.fromMap(response);
+    final products = await _mapProductsWithProfiles([response]);
+
+    return products.first;
   }
 
   // ============================================================
@@ -449,15 +453,6 @@ class ProductService {
         .from('products')
         .select('''
           *,
-          profiles (
-            id,
-            nama,
-            email,
-            nim,
-            kampus,
-            fakultas,
-            program_studi
-          ),
           categories (
             id,
             name
@@ -466,6 +461,6 @@ class ProductService {
         .eq('seller_id', user.id)
         .order('created_at', ascending: false);
 
-    return response.map<Product>((item) => Product.fromMap(item)).toList();
+    return _mapProductsWithProfiles(response);
   }
 }
