@@ -133,4 +133,40 @@ class AuthService {
 
     return allowedDomains.contains(domain);
   }
+
+  static Future<void> updatePassword(String password) async {
+    try {
+      if (_client.auth.currentUser == null) {
+        throw Exception('Pengguna belum login.');
+      }
+
+      if (password.length < 6) {
+        throw Exception('Password minimal 6 karakter.');
+      }
+
+      await _client.auth.updateUser(UserAttributes(password: password));
+    } on AuthException catch (e) {
+      throw Exception(e.message);
+    } catch (e) {
+      throw Exception(e.toString());
+    }
+  }
+
+  static Future<User> signIn({
+    required String email,
+    required String password,
+  }) async {
+    final response = await _client.auth.signInWithPassword(
+      email: email.trim(),
+      password: password,
+    );
+
+    final user = response.user;
+
+    if (user == null) {
+      throw Exception('Login gagal. Silakan coba kembali.');
+    }
+
+    return user;
+  }
 }
