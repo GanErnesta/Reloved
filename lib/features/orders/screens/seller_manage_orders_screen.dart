@@ -1,6 +1,6 @@
+import 'package:application_reloved/features/sell/screens/add_catalog_screen.dart';
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../sell/screens/sell_screen.dart';
 import '../controllers/seller_order_controller.dart';
 import '../models/seller_order_model.dart';
 import '../widgets/seller_filter_chips.dart';
@@ -150,7 +150,7 @@ class _SellerManageOrdersScreenState extends State<SellerManageOrdersScreen> {
             }
             // Navigasi default ke halaman Tambah Katalog / SellScreen
             Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const SellScreen()),
+              MaterialPageRoute(builder: (_) => const AddCatalogScreen()),
             );
           },
           backgroundColor: AppColors.primary,

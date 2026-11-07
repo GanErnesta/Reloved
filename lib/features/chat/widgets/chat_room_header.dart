@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
@@ -6,18 +7,22 @@ import '../../../core/constants/app_text_styles.dart';
 
 class ChatRoomHeader extends StatelessWidget {
   final String name;
+  final String? avatarUrl;
   final VoidCallback onBack;
   final VoidCallback onMore;
 
   const ChatRoomHeader({
     super.key,
     required this.name,
+    this.avatarUrl,
     required this.onBack,
     required this.onMore,
   });
 
   @override
   Widget build(BuildContext context) {
+    final hasAvatar = avatarUrl != null && avatarUrl!.isNotEmpty;
+
     return Container(
       height: 64,
       decoration: BoxDecoration(
@@ -45,16 +50,30 @@ class ChatRoomHeader extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 18),
-            const CircleAvatar(
-              radius: 16,
-              backgroundColor: Color(0xFFF1E4E7),
+            CircleAvatar(
+              radius: 18,
+              backgroundColor: const Color(0xFFF1E4E7),
+              backgroundImage:
+                  hasAvatar ? NetworkImage(avatarUrl!) : null,
+              child: hasAvatar
+                  ? null
+                  : const Icon(
+                      Icons.person,
+                      color: AppColors.primary,
+                      size: 20,
+                    ),
             ),
+            
             const SizedBox(width: 14),
-            Text(
-              name,
-              style: AppTextStyles.bodyMedium.copyWith(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
+            Expanded(
+              child: Text(
+                name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.bodyMedium.copyWith(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -66,7 +85,7 @@ class ChatRoomHeader extends StatelessWidget {
                 shape: BoxShape.circle,
               ),
             ),
-            const Spacer(),
+            const SizedBox(width: 12),
             GestureDetector(
               onTap: onMore,
               child: const Icon(

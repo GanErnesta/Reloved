@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_radius.dart';
-import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 
 class ProfileHeader extends StatelessWidget {
@@ -15,147 +13,175 @@ class ProfileHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final photo = profile['foto_profil'];
+    final photo = profile['foto_profil']?.toString();
     final campus = profile['campuses'];
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(.05),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Avatar
-          Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: AppColors.primary,
-                width: 3,
+    final nama = profile['nama']?.toString() ?? '-';
+    final email = profile['email']?.toString() ?? '-';
+    final fakultas = profile['fakultas']?.toString() ?? '';
+    final prodi = profile['program_studi']?.toString() ?? '';
+
+    // Angkatan dapat ditambahkan ke kolom profiles jika tersedia.
+    final angkatan = profile['angkatan']?.toString();
+
+    final campusName = campus is Map
+        ? campus['name']?.toString() ?? '-'
+        : profile['kampus']?.toString() ?? '-';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(3),
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.border,
+              ),
+              child: CircleAvatar(
+                radius: 34,
+                backgroundColor: AppColors.background,
+                backgroundImage:
+                    photo != null && photo.isNotEmpty
+                        ? NetworkImage(photo)
+                        : null,
+                child: photo == null || photo.isEmpty
+                    ? const Icon(
+                        Icons.person,
+                        size: 36,
+                        color: AppColors.textSecondary,
+                      )
+                    : null,
               ),
             ),
-            child: CircleAvatar(
-              radius: 52,
-              backgroundColor: AppColors.background,
-              backgroundImage:
-                  photo != null && photo.toString().isNotEmpty
-                      ? NetworkImage(photo)
-                      : null,
-              child: photo == null || photo.toString().isEmpty
-                  ? const Icon(
-                      Icons.person,
-                      size: 55,
-                    )
-                  : null,
+
+            const SizedBox(width: 16),
+
+            Expanded(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildStatistic('0', 'Transaksi'),
+                  _buildDivider(),
+                  _buildStatistic('0', 'Pengikut'),
+                  _buildDivider(),
+                  _buildStatistic('0', 'Mengikuti'),
+                ],
+              ),
             ),
+          ],
+        ),
+
+        const SizedBox(height: 16),
+
+        Text(
+          nama,
+          style: AppTextStyles.title.copyWith(
+            fontWeight: FontWeight.w800,
+            color: AppColors.textPrimary,
+          ),
+        ),
+
+        const SizedBox(height: 4),
+
+        Row(
+          children: [
+            const Icon(
+              Icons.location_on_outlined,
+              size: 14,
+              color: AppColors.textSecondary,
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                campusName,
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 6),
+
+        if (prodi.isNotEmpty || angkatan != null)
+          Wrap(
+            spacing: 5,
+            children: [
+              if (prodi.isNotEmpty)
+                _buildBadge(prodi),
+              if (angkatan != null && angkatan.isNotEmpty)
+                _buildBadge(angkatan),
+            ],
           ),
 
-          const SizedBox(height: AppSpacing.lg),
-
-          // Nama
+        if (fakultas.isNotEmpty) ...[
+          const SizedBox(height: 5),
           Text(
-            profile['nama'] ?? '-',
-            textAlign: TextAlign.center,
-            style: AppTextStyles.heading.copyWith(
-              fontSize: 28,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-
-          const SizedBox(height: 6),
-
-          // Email
-          Text(
-            profile['email'] ?? '-',
-            textAlign: TextAlign.center,
-            style: AppTextStyles.body.copyWith(
+            fakultas,
+            style: AppTextStyles.caption.copyWith(
               color: AppColors.textSecondary,
             ),
           ),
-
-          const SizedBox(height: AppSpacing.lg),
-
-          // Badge Kampus
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 10,
-            ),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(.08),
-              borderRadius: BorderRadius.circular(30),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.school_rounded,
-                  size: 18,
-                  color: AppColors.primary,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  campus?['name'] ?? '-',
-                  style: AppTextStyles.body.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.primary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: AppSpacing.md),
-
-          // Fakultas • Prodi
-          Text(
-            "${profile['fakultas'] ?? '-'} • ${profile['program_studi'] ?? '-'}",
-            textAlign: TextAlign.center,
-            style: AppTextStyles.caption,
-          ),
-
-          const SizedBox(height: AppSpacing.lg),
-
-          // Status Mahasiswa
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 18,
-              vertical: 8,
-            ),
-            decoration: BoxDecoration(
-              color: Colors.green.withOpacity(.12),
-              borderRadius: BorderRadius.circular(30),
-            ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.verified,
-                  size: 18,
-                  color: Colors.green,
-                ),
-                SizedBox(width: 8),
-                Text(
-                  "Mahasiswa Terverifikasi",
-                  style: TextStyle(
-                    color: Colors.green,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
         ],
+
+        const SizedBox(height: 8),
+
+        Text(
+          email,
+          style: AppTextStyles.caption.copyWith(
+            color: AppColors.textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatistic(String value, String label) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: AppTextStyles.title.copyWith(
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: AppTextStyles.caption.copyWith(fontSize: 11),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDivider() {
+    return Container(
+      height: 32,
+      width: 1,
+      color: AppColors.border,
+    );
+  }
+
+  Widget _buildBadge(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 9,
+        vertical: 4,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withOpacity(.08),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        text,
+        style: AppTextStyles.caption.copyWith(
+          color: AppColors.primary,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }

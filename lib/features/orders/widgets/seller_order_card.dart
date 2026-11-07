@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../core/constants/app_colors.dart';
 import '../models/seller_order_model.dart';
 import 'buyer_trust_score_badge.dart';
@@ -21,66 +22,76 @@ class SellerOrderCard extends StatelessWidget {
   });
 
   String _formatRupiah(int amount) {
-    final str = amount.toString().replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-          (Match m) => '${m[1]}.',
+    final formatted = amount.toString().replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (match) => '.',
     );
-    return 'Rp $str';
+
+    return 'Rp $formatted';
   }
 
-  // Menentukan skema warna kartu berdasarkan status
   _CardThemeColors get _theme {
     if (order.mode == SellerOrderMode.penjualan) {
-      switch (order.saleStatus!) {
+      switch (order.saleStatus) {
         case SellerSaleStatus.baru:
-          return _CardThemeColors.amber(title: 'Pesanan Baru');
+          return _CardThemeColors.amber('Pesanan Baru');
         case SellerSaleStatus.siapCod:
-          return _CardThemeColors.blue(title: 'Siap COD / Kirim');
+          return _CardThemeColors.blue('Siap COD / Kirim');
         case SellerSaleStatus.selesai:
-          return _CardThemeColors.green(title: 'Selesai');
+          return _CardThemeColors.green('Selesai');
+        case null:
+          return _CardThemeColors.amber('Pesanan');
       }
-    } else {
-      switch (order.rentalStatus!) {
-        case SellerRentalStatus.permintaan:
-          return _CardThemeColors.amber(title: 'Permintaan');
-        case SellerRentalStatus.aktif:
-          return _CardThemeColors.blue(title: 'Masa Sewa Aktif');
-        case SellerRentalStatus.kembali:
-          return _CardThemeColors.green(title: 'Pengembalian');
-        case SellerRentalStatus.selesai:
-          return _CardThemeColors.green(title: 'Selesai');
-      }
+    }
+
+    switch (order.rentalStatus) {
+      case SellerRentalStatus.permintaan:
+        return _CardThemeColors.amber('Permintaan Sewa');
+      case SellerRentalStatus.aktif:
+        return _CardThemeColors.blue('Masa Sewa Aktif');
+      case SellerRentalStatus.kembali:
+        return _CardThemeColors.green('Pengembalian');
+      case SellerRentalStatus.selesai:
+        return _CardThemeColors.green('Selesai');
+      case null:
+        return _CardThemeColors.amber('Pesanan Sewa');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = _theme;
-    final bool isRental = order.mode == SellerOrderMode.penyewaan;
+    final isRental = order.mode == SellerOrderMode.penyewaan;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 18),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: theme.borderColor, width: 1.2),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: theme.borderColor,
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: Colors.black.withOpacity(.035),
             blurRadius: 8,
-            offset: const Offset(0, 2),
+            offset: const Offset(0, 3),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(19),
+        borderRadius: BorderRadius.circular(17),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. Header Status Berwarna
+            // HEADER STATUS
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 11,
+              ),
               color: theme.headerBgColor,
               child: Text(
                 theme.title,
@@ -97,16 +108,18 @@ class SellerOrderCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 2. Kode Transaksi & Waktu Relatif
+                  // KODE TRANSAKSI
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        order.transactionCode,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF666666),
+                      Expanded(
+                        child: Text(
+                          order.transactionCode,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF666666),
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
                       Text(
@@ -118,25 +131,16 @@ class SellerOrderCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
 
-                  // 3. Profil Pembeli + Campus Trust Score Badge + Nama Kampus
+                  const SizedBox(height: 16),
+
+                  // PROFIL PEMBELI
                   Row(
                     children: [
-                      CircleAvatar(
-                        radius: 21,
-                        backgroundColor: AppColors.primaryLight,
-                        backgroundImage: AssetImage(order.buyerAvatarPath),
-                        onBackgroundImageError: (_, __) {},
-                        child: Text(
-                          order.buyerName[0].toUpperCase(),
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                      ),
+                      _buildBuyerAvatar(),
+
                       const SizedBox(width: 12),
+
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -149,21 +153,27 @@ class SellerOrderCard extends StatelessWidget {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
-                                      fontSize: 15,
+                                      fontSize: 14,
                                       fontWeight: FontWeight.w700,
                                       color: Color(0xFF1A253A),
                                     ),
                                   ),
                                 ),
-                                const SizedBox(width: 8),
+
+                                const SizedBox(width: 7),
+
                                 BuyerTrustScoreBadge(
                                   score: order.buyerTrustScore,
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 3),
+
+                            const SizedBox(height: 4),
+
                             Text(
                               order.buyerCampus,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: Color(0xFF666666),
@@ -174,9 +184,10 @@ class SellerOrderCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
 
-                  // 4. Kotak Informasi Produk
+                  const SizedBox(height: 16),
+
+                  // INFORMASI PRODUK
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -185,23 +196,10 @@ class SellerOrderCard extends StatelessWidget {
                     ),
                     child: Row(
                       children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Container(
-                            width: 60,
-                            height: 60,
-                            color: Colors.white,
-                            child: Image.asset(
-                              order.productImagePath,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => const Icon(
-                                Icons.inventory_2_outlined,
-                                color: AppColors.primary,
-                              ),
-                            ),
-                          ),
-                        ),
+                        _buildProductImage(),
+
                         const SizedBox(width: 12),
+
                         Expanded(
                           child: isRental
                               ? _buildRentalProductDetails()
@@ -210,47 +208,48 @@ class SellerOrderCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 10),
 
-                  // 5. Kotak Total Pembayaran / Total Sewa & Metode Pembayaran
+                  const SizedBox(height: 12),
+
+                  // TOTAL PEMBAYARAN
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
+                      horizontal: 12,
                       vertical: 12,
                     ),
                     decoration: BoxDecoration(
                       color: theme.innerBoxBgColor,
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(13),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              isRental &&
-                                  order.rentalStatus !=
-                                      SellerRentalStatus.kembali
-                                  ? 'Total Sewa'
-                                  : 'Total Pembayaran',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                                color: AppColors.textPrimary,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                isRental ? 'Total Sewa' : 'Total Pembayaran',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textPrimary,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              _formatRupiah(order.totalPayment),
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.primary,
+                              const SizedBox(height: 4),
+                              Text(
+                                _formatRupiah(order.totalPayment),
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.primary,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
+
+                        const SizedBox(width: 8),
+
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
@@ -258,7 +257,6 @@ class SellerOrderCard extends StatelessWidget {
                               'Metode Pembayaran',
                               style: TextStyle(
                                 fontSize: 12,
-                                fontWeight: FontWeight.w500,
                                 color: AppColors.textPrimary,
                               ),
                             ),
@@ -276,21 +274,22 @@ class SellerOrderCard extends StatelessWidget {
                       ],
                     ),
                   ),
+
                   const SizedBox(height: 12),
 
-                  // 6. Pill Waktu Terima Sebelum (Khusus Status Baru / Permintaan)
+                  // BATAS WAKTU PENERIMAAN
                   if (order.isPendingAction &&
                       order.acceptDeadlineText != null) ...[
                     _buildTimerPill(
                       text: 'Terima sebelum: ${order.acceptDeadlineText}',
                       bgColor: const Color(0xFFF6EFE2),
-                      borderColor: const Color(0xFF7D6B57),
+                      borderColor: const Color(0xFFE5C28C),
                       textColor: const Color(0xFF94621F),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                   ],
 
-                  // 7. Pill Sisa Waktu Sewa (Khusus Status Masa Sewa Aktif)
+                  // SISA WAKTU SEWA
                   if (isRental &&
                       order.rentalStatus == SellerRentalStatus.aktif &&
                       order.remainingRentalTimeText != null) ...[
@@ -300,21 +299,71 @@ class SellerOrderCard extends StatelessWidget {
                       borderColor: AppColors.primary,
                       textColor: AppColors.primary,
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                   ],
 
-                  // 8. Pill Lokasi Safe Meeting Point (Seragam untuk Penjualan & Penyewaan, tanpa COD/Kurir)
+                  // LOKASI PERTEMUAN
                   SellerSafeMeetingPill(
                     meetingPointName: order.safeMeetingPoint.name,
                   ),
 
-                  // 9. Tombol Aksi Sesuai Status
+                  // TOMBOL AKSI
                   _buildActionButtons(),
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildBuyerAvatar() {
+    final path = order.buyerAvatarPath;
+
+    return CircleAvatar(
+      radius: 21,
+      backgroundColor: AppColors.primaryLight,
+      backgroundImage: path.isNotEmpty ? AssetImage(path) : null,
+      onBackgroundImageError: (_, __) {},
+      child: path.isEmpty
+          ? Text(
+              order.buyerName.isNotEmpty
+                  ? order.buyerName[0].toUpperCase()
+                  : '?',
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                color: AppColors.primary,
+              ),
+            )
+          : null,
+    );
+  }
+
+  Widget _buildProductImage() {
+    final path = order.productImagePath;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: 60,
+        height: 60,
+        color: Colors.white,
+        child: path.isEmpty
+            ? const Icon(
+                Icons.inventory_2_outlined,
+                color: AppColors.primary,
+              )
+            : Image.asset(
+                path,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) {
+                  return const Icon(
+                    Icons.inventory_2_outlined,
+                    color: AppColors.primary,
+                  );
+                },
+              ),
       ),
     );
   }
@@ -330,7 +379,7 @@ class SellerOrderCard extends StatelessWidget {
             color: Color(0xFF4A4A4A),
           ),
         ),
-        const SizedBox(height: 3),
+        const SizedBox(height: 4),
         Text(
           order.productName,
           maxLines: 2,
@@ -359,7 +408,7 @@ class SellerOrderCard extends StatelessWidget {
             color: AppColors.textPrimary,
           ),
         ),
-        const SizedBox(height: 3),
+        const SizedBox(height: 4),
         Text(
           '${_formatRupiah(order.unitPrice)}/hari · ${order.rentalDays ?? 1} hari',
           style: const TextStyle(
@@ -368,7 +417,7 @@ class SellerOrderCard extends StatelessWidget {
           ),
         ),
         if (order.depositAmount != null) ...[
-          const SizedBox(height: 3),
+          const SizedBox(height: 4),
           Text(
             'Deposit: ${_formatRupiah(order.depositAmount!)}',
             style: const TextStyle(
@@ -390,17 +439,20 @@ class SellerOrderCard extends StatelessWidget {
   }) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: 9,
+      ),
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: borderColor, width: 1),
+        border: Border.all(color: borderColor),
       ),
       child: Row(
         children: [
           Icon(
             Icons.access_time_rounded,
-            size: 16,
+            size: 15,
             color: textColor,
           ),
           const SizedBox(width: 8),
@@ -408,7 +460,7 @@ class SellerOrderCard extends StatelessWidget {
             child: Text(
               text,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: FontWeight.w600,
                 color: textColor,
               ),
@@ -420,7 +472,7 @@ class SellerOrderCard extends StatelessWidget {
   }
 
   Widget _buildActionButtons() {
-    // Aksi untuk Pesanan Baru (Penjualan) atau Permintaan (Penyewaan): Tolak & Terima
+    // PESANAN BARU / PERMINTAAN SEWA
     if (order.isPendingAction) {
       return Padding(
         padding: const EdgeInsets.only(top: 14),
@@ -444,7 +496,6 @@ class SellerOrderCard extends StatelessWidget {
                   child: const Text(
                     'Tolak',
                     style: TextStyle(
-                      fontSize: 14,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -468,7 +519,6 @@ class SellerOrderCard extends StatelessWidget {
                   child: const Text(
                     'Terima',
                     style: TextStyle(
-                      fontSize: 14,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -480,7 +530,7 @@ class SellerOrderCard extends StatelessWidget {
       );
     }
 
-    // Aksi untuk Siap COD (Penjualan): Tandai Selesai
+    // PENJUALAN SIAP COD
     if (order.mode == SellerOrderMode.penjualan &&
         order.saleStatus == SellerSaleStatus.siapCod) {
       return Padding(
@@ -501,7 +551,6 @@ class SellerOrderCard extends StatelessWidget {
             child: const Text(
               'Tandai Selesai',
               style: TextStyle(
-                fontSize: 14,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -510,7 +559,7 @@ class SellerOrderCard extends StatelessWidget {
       );
     }
 
-    // Aksi untuk Pengembalian (Penyewaan): Verifikasi Pengembalian
+    // PENGEMBALIAN SEWA
     if (order.mode == SellerOrderMode.penyewaan &&
         order.rentalStatus == SellerRentalStatus.kembali) {
       return Padding(
@@ -531,7 +580,6 @@ class SellerOrderCard extends StatelessWidget {
             child: const Text(
               'Verifikasi Pengembalian',
               style: TextStyle(
-                fontSize: 14,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -554,12 +602,12 @@ class _CardThemeColors {
   const _CardThemeColors({
     required this.title,
     required this.headerBgColor,
-    required this.headerTextColor,
     required this.borderColor,
+    required this.headerTextColor,
     required this.innerBoxBgColor,
   });
 
-  factory _CardThemeColors.amber({required String title}) {
+  factory _CardThemeColors.amber(String title) {
     return _CardThemeColors(
       title: title,
       headerBgColor: const Color(0xFFF5E3C3),
@@ -569,7 +617,7 @@ class _CardThemeColors {
     );
   }
 
-  factory _CardThemeColors.blue({required String title}) {
+  factory _CardThemeColors.blue(String title) {
     return _CardThemeColors(
       title: title,
       headerBgColor: const Color(0xFFDCE5F5),
@@ -579,7 +627,7 @@ class _CardThemeColors {
     );
   }
 
-  factory _CardThemeColors.green({required String title}) {
+  factory _CardThemeColors.green(String title) {
     return _CardThemeColors(
       title: title,
       headerBgColor: const Color(0xFFE1F3E4),
