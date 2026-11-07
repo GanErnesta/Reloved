@@ -1,3 +1,4 @@
+
 import 'dart:typed_data';
 
 import 'package:image_picker/image_picker.dart';
@@ -9,12 +10,14 @@ class ProductService {
   final SupabaseClient _supabase;
 
   ProductService({SupabaseClient? supabase})
-    : _supabase = supabase ?? Supabase.instance.client;
+      : _supabase = supabase ?? Supabase.instance.client;
 
   static const String _bucketName = 'product-images';
   static const int _maxImages = 5;
 
-  Future<List<Product>> _mapProductsWithProfiles(List<dynamic> rows) async {
+  Future<List<Product>> _mapProductsWithProfiles(
+    List<dynamic> rows,
+  ) async {
     final products = rows
         .map((row) => Map<String, dynamic>.from(row as Map))
         .toList();
@@ -106,12 +109,13 @@ class ProductService {
 
         final filePath = '${user.id}/$fileName';
 
-        await _supabase.storage
-            .from(_bucketName)
-            .uploadBinary(
+        await _supabase.storage.from(_bucketName).uploadBinary(
               filePath,
               bytes,
-              fileOptions: FileOptions(contentType: contentType, upsert: false),
+              fileOptions: FileOptions(
+                contentType: contentType,
+                upsert: false,
+              ),
             );
 
         uploadedPaths.add(filePath);
@@ -297,10 +301,12 @@ class ProductService {
     ];
 
     return products.where((product) {
-      final searchableText = '${product.name} ${product.categoryName}'
-          .toLowerCase();
+      final searchableText =
+          '${product.name} ${product.categoryName}'.toLowerCase();
 
-      return mabaKeywords.any((keyword) => searchableText.contains(keyword));
+      return mabaKeywords.any(
+        (keyword) => searchableText.contains(keyword),
+      );
     }).toList();
   }
 
@@ -324,7 +330,10 @@ class ProductService {
           .eq('status', 'available')
           .or('name.ilike.$searchPattern,description.ilike.$searchPattern')
           .order('created_at', ascending: false),
-      _supabase.from('categories').select('id').ilike('name', searchPattern),
+      _supabase
+          .from('categories')
+          .select('id')
+          .ilike('name', searchPattern),
     ]);
 
     final productResults = responses[0] as List;
@@ -405,6 +414,26 @@ class ProductService {
     return _mapProductsWithProfiles(response);
   }
 
+  Future<List<Product>> getProductsBySellerId(String sellerId) async {
+    if (sellerId.isEmpty) {
+      throw Exception('ID penjual tidak valid.');
+    }
+
+    final response = await _supabase
+        .from('products')
+        .select('''
+          *,
+          categories (
+            id,
+            name
+          )
+        ''')
+        .eq('seller_id', sellerId)
+        .order('created_at', ascending: false);
+
+    return _mapProductsWithProfiles(response);
+  }
+
   Future<List<Product>> getProductsByCategory(String categoryName) async {
     final normalizedName = categoryName.replaceAll('\n', ' ').trim();
 
@@ -438,12 +467,12 @@ class ProductService {
     final response = await _supabase
         .from('products')
         .select('''
-        *,
-        categories (
-          id,
-          name
-        )
-      ''')
+          *,
+          categories (
+            id,
+            name
+          )
+        ''')
         .eq('status', 'available')
         .eq('transaction_type', 'rent')
         .order('created_at', ascending: false);

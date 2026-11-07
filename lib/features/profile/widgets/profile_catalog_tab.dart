@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
@@ -9,11 +10,15 @@ import '../../home/widgets/product_card.dart';
 import '../../home/screens/product_detail_screen.dart';
 
 class ProfileCatalogTab extends StatefulWidget {
-  const ProfileCatalogTab({super.key});
+  final String? sellerId;
+
+  const ProfileCatalogTab({
+    super.key,
+    this.sellerId,
+  });
 
   @override
-  State<ProfileCatalogTab> createState() =>
-      _ProfileCatalogTabState();
+  State<ProfileCatalogTab> createState() => _ProfileCatalogTabState();
 }
 
 class _ProfileCatalogTabState extends State<ProfileCatalogTab> {
@@ -24,17 +29,18 @@ class _ProfileCatalogTabState extends State<ProfileCatalogTab> {
   @override
   void initState() {
     super.initState();
-    _productsFuture = _service.getMyProducts();
+    _loadProducts();
+  }
+
+  void _loadProducts() {
+    _productsFuture = widget.sellerId != null
+        ? _service.getProductsBySellerId(widget.sellerId!)
+        : _service.getMyProducts();
   }
 
   Future<void> _refresh() async {
-    final future = _service.getMyProducts();
-
-    setState(() {
-      _productsFuture = future;
-    });
-
-    await future;
+    setState(_loadProducts);
+    await _productsFuture;
   }
 
   @override
@@ -63,9 +69,7 @@ class _ProfileCatalogTabState extends State<ProfileCatalogTab> {
                   const SizedBox(height: 12),
                   const Text(
                     'Gagal memuat katalog',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -111,8 +115,7 @@ class _ProfileCatalogTabState extends State<ProfileCatalogTab> {
                 SizedBox(height: 6),
                 Center(
                   child: Text(
-                    'Produk yang kamu jual atau sewakan\n'
-                    'akan muncul di sini.',
+                    'Produk yang tersedia akan muncul di sini.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: AppColors.textSecondary,
