@@ -6,6 +6,70 @@ enum SellerSaleStatus { baru, siapCod, selesai }
 
 enum SellerRentalStatus { permintaan, aktif, kembali, selesai }
 
+Map<String, dynamic> _asMap(dynamic value) {
+  if (value is Map) return Map<String, dynamic>.from(value);
+  return <String, dynamic>{};
+}
+
+int _toInt(dynamic value, [int fallback = 0]) {
+  if (value is num) return value.toInt();
+  if (value is String) {
+    return int.tryParse(value) ?? double.tryParse(value)?.toInt() ?? fallback;
+  }
+  return fallback;
+}
+
+String _cleanText(dynamic value) {
+  final text = (value ?? '').toString().trim();
+  return text == 'null' ? '' : text;
+}
+
+/// Satu baris produk di dalam pesanan (pesanan bisa berisi lebih dari satu).
+class SellerOrderItemModel {
+  final String id;
+  final String productName;
+
+  /// Nilai mentah gambar (URL / path storage / path asset). Kosong jika tidak ada.
+  final String imagePath;
+
+  final int quantity;
+  final int unitPrice;
+  final int? rentalDays;
+  final int? depositAmount;
+
+  const SellerOrderItemModel({
+    required this.id,
+    required this.productName,
+    required this.imagePath,
+    this.quantity = 1,
+    required this.unitPrice,
+    this.rentalDays,
+    this.depositAmount,
+  });
+
+  factory SellerOrderItemModel.fromSupabaseMap(Map<String, dynamic> map) {
+    final product = _asMap(map['products']);
+    final snapshot = _cleanText(map['product_image_snapshot']);
+
+    final name = _cleanText(map['product_name_snapshot']).isNotEmpty
+        ? _cleanText(map['product_name_snapshot'])
+        : (_cleanText(product['name']).isNotEmpty
+        ? _cleanText(product['name'])
+        : 'Produk Reloved');
+
+    return SellerOrderItemModel(
+      id: _cleanText(map['id']),
+      productName: name,
+      imagePath:
+      snapshot.isNotEmpty ? snapshot : _cleanText(product['image_url']),
+      quantity: _toInt(map['quantity'], 1),
+      unitPrice: _toInt(map['unit_price']),
+      rentalDays: (map['rental_duration_days'] as num?)?.toInt(),
+      depositAmount: (map['deposit_amount'] as num?)?.toInt(),
+    );
+  }
+}
+
 class SellerOrderModel {
   final String id;
   final String transactionCode;
@@ -21,7 +85,11 @@ class SellerOrderModel {
   final String buyerCampus;
 
   final String productName;
+
+  /// Nilai mentah gambar (URL / path storage / path asset). Kosong jika tidak ada.
+  /// Tampilkan lewat `SmartImage(source: productImagePath)`.
   final String productImagePath;
+
   final int quantity;
   final int unitPrice;
 
@@ -37,6 +105,9 @@ class SellerOrderModel {
 
   final String? supabaseOrderId;
   final String? midtransTransactionId;
+
+  /// Semua produk dalam pesanan ini. Gunakan [displayItems] di UI.
+  final List<SellerOrderItemModel> items;
 
   SellerOrderModel({
     required this.id,
@@ -62,7 +133,26 @@ class SellerOrderModel {
     required this.safeMeetingPoint,
     this.supabaseOrderId,
     this.midtransTransactionId,
+    this.items = const [],
   });
+
+  /// Daftar produk untuk ditampilkan. Jika [items] kosong (data lama),
+  /// dibuat satu item dari field produk pertama.
+  List<SellerOrderItemModel> get displayItems {
+    if (items.isNotEmpty) return items;
+
+    return [
+      SellerOrderItemModel(
+        id: 'single',
+        productName: productName,
+        imagePath: productImagePath,
+        quantity: quantity,
+        unitPrice: unitPrice,
+        rentalDays: rentalDays,
+        depositAmount: depositAmount,
+      ),
+    ];
+  }
 
   bool get isPendingAction {
     if (mode == SellerOrderMode.penjualan) {
@@ -120,44 +210,80 @@ class SellerOrderModel {
   }
 
   factory SellerOrderModel.fromSupabaseMap(Map<String, dynamic> map) {
-    final buyer = map['buyer'] as Map<String, dynamic>? ?? {};
-    final smpMap = map['safe_meeting_points'] as Map<String, dynamic>?;
+    final buyer = _asMap(map['buyer']);
+    final smpRaw = map['safe_meeting_points'];
     final rawItems = map['order_items'] as List<dynamic>? ?? [];
     final firstItem = rawItems.isNotEmpty
         ? Map<String, dynamic>.from(rawItems.first as Map)
         : <String, dynamic>{};
+    final firstProduct = _asMap(firstItem['products']);
+
+    final parsedItems = rawItems
+        .whereType<Map>()
+        .map(
+          (e) => SellerOrderItemModel.fromSupabaseMap(
+        Map<String, dynamic>.from(e),
+      ),
+    )
+        .toList();
 
     final rawType = (map['order_type'] ?? 'beli').toString().toLowerCase();
     final bool isRental = rawType == 'sewa' || rawType == 'rent';
     final rawSellerStatus = (map['seller_status'] ?? 'baru').toString();
 
+    // Prioritas snapshot; jika kosong pakai gambar produk asli
+    // (butuh `products(image_url)` di select order_items pada repository).
+    final snapshotImage = _cleanText(firstItem['product_image_snapshot']);
+    final productImage = snapshotImage.isNotEmpty
+        ? snapshotImage
+        : _cleanText(firstProduct['image_url']);
+
+    final buyerAvatar = _cleanText(
+      buyer['foto_profil'] ?? buyer['avatar_url'] ?? buyer['photo_url'],
+    );
+
     return SellerOrderModel(
-      id: (map['id'] ?? '').toString(),
-      transactionCode: (map['transaction_code'] ?? 'TRX-000').toString(),
+      id: _cleanText(map['id']),
+      transactionCode: _cleanText(map['transaction_code']).isNotEmpty
+          ? _cleanText(map['transaction_code'])
+          : 'TRX-000',
       relativeTimeText: _formatRelativeTime(map['ordered_at']?.toString()),
       mode: isRental ? SellerOrderMode.penyewaan : SellerOrderMode.penjualan,
       saleStatus: isRental ? null : _parseSaleStatus(rawSellerStatus),
       rentalStatus: isRental ? _parseRentalStatus(rawSellerStatus) : null,
-      buyerName: (buyer['nama'] ?? 'Mahasiswa UB').toString(),
-      buyerAvatarPath: (buyer['foto_profil'] ?? 'assets/images/buyer_arine.png').toString(),
-      buyerTrustScore: ((buyer['trust_score'] ?? 100) as num).toInt(),
-      buyerCampus: (buyer['kampus'] ?? 'Universitas Brawijaya').toString(),
-      productName: (firstItem['product_name_snapshot'] ?? 'Produk Reloved').toString(),
-      productImagePath: (firstItem['product_image_snapshot'] ?? 'assets/images/buku_algoritma.png').toString(),
-      quantity: ((firstItem['quantity'] ?? 1) as num).toInt(),
-      unitPrice: ((firstItem['unit_price'] ?? map['product_subtotal'] ?? 0) as num).toInt(),
+      buyerName: _cleanText(buyer['nama']).isNotEmpty
+          ? _cleanText(buyer['nama'])
+          : 'Mahasiswa UB',
+      buyerAvatarPath:
+      buyerAvatar.isNotEmpty ? buyerAvatar : 'assets/images/buyer_arine.png',
+      buyerTrustScore: _toInt(buyer['trust_score'], 100),
+      buyerCampus: _cleanText(buyer['kampus']).isNotEmpty
+          ? _cleanText(buyer['kampus'])
+          : 'Universitas Brawijaya',
+      productName: _cleanText(firstItem['product_name_snapshot']).isNotEmpty
+          ? _cleanText(firstItem['product_name_snapshot'])
+          : (_cleanText(firstProduct['name']).isNotEmpty
+          ? _cleanText(firstProduct['name'])
+          : 'Produk Reloved'),
+      productImagePath: productImage,
+      quantity: _toInt(firstItem['quantity'], 1),
+      unitPrice: _toInt(firstItem['unit_price'] ?? map['product_subtotal']),
       rentalDays: (map['rental_duration_days'] as num?)?.toInt() ?? 1,
-      depositAmount: ((map['deposit_total'] ?? 0) as num).toInt(),
+      depositAmount: _toInt(map['deposit_total']),
       remainingRentalTimeText: isRental
           ? _formatCountdown(map['rental_end_at']?.toString())
           : null,
-      totalPayment: ((map['product_subtotal'] ?? map['grand_total'] ?? 0) as num).toInt(),
-      paymentMethod: (map['payment_method'] ?? 'QRIS').toString(),
-      acceptDeadlineText: _formatCountdown(map['accept_deadline_at']?.toString()),
-      safeMeetingPoint: smpMap != null
-          ? SafeMeetingPointModel.fromMap(smpMap)
+      totalPayment: _toInt(map['product_subtotal'] ?? map['grand_total']),
+      paymentMethod: _cleanText(map['payment_method']).isNotEmpty
+          ? _cleanText(map['payment_method'])
+          : 'QRIS',
+      acceptDeadlineText:
+      _formatCountdown(map['accept_deadline_at']?.toString()),
+      safeMeetingPoint: smpRaw is Map
+          ? SafeMeetingPointModel.fromMap(Map<String, dynamic>.from(smpRaw))
           : SafeMeetingPointModel.campusPoints.first,
-      supabaseOrderId: (map['id'] ?? '').toString(),
+      supabaseOrderId: _cleanText(map['id']),
+      items: parsedItems,
     );
   }
 }

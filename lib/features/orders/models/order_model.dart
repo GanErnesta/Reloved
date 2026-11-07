@@ -10,10 +10,36 @@ enum OrderStatus {
   dibatalkan,
 }
 
+// -----------------------------------------------------------------------------
+// Helper parsing aman terhadap tipe data tak terduga dari Supabase
+// -----------------------------------------------------------------------------
+
+Map<String, dynamic> _asMap(dynamic value) {
+  if (value is Map) return Map<String, dynamic>.from(value);
+  return <String, dynamic>{};
+}
+
+int _toInt(dynamic value, [int fallback = 0]) {
+  if (value is num) return value.toInt();
+  if (value is String) {
+    return int.tryParse(value) ?? double.tryParse(value)?.toInt() ?? fallback;
+  }
+  return fallback;
+}
+
+String _cleanText(dynamic value) {
+  final text = (value ?? '').toString().trim();
+  return text == 'null' ? '' : text;
+}
+
 class OrderItemModel {
   final String id;
   final String productName;
+
+  /// Nilai mentah gambar (URL / path storage / path asset). Kosong jika tidak ada.
+  /// Tampilkan lewat `SmartImage(source: imagePath)`.
   final String imagePath;
+
   final int price;
   final int quantity;
   final String? variant;
@@ -28,12 +54,23 @@ class OrderItemModel {
   });
 
   factory OrderItemModel.fromSupabaseMap(Map<String, dynamic> map) {
+    // Prioritas: snapshot saat pesanan dibuat. Jika snapshot kosong (misalnya
+    // fungsi RPC di database tidak mengisinya), pakai gambar produk aslinya
+    // (butuh `products(image_url)` di select order_items pada repository).
+    final product = _asMap(map['products']);
+    final snapshot = _cleanText(map['product_image_snapshot']);
+
     return OrderItemModel(
-      id: (map['id'] ?? '').toString(),
-      productName: (map['product_name_snapshot'] ?? 'Produk').toString(),
-      imagePath: (map['product_image_snapshot'] ?? 'assets/images/kemeja_putih.png').toString(),
-      price: ((map['unit_price'] ?? 0) as num).toInt(),
-      quantity: ((map['quantity'] ?? 1) as num).toInt(),
+      id: _cleanText(map['id']),
+      productName: _cleanText(map['product_name_snapshot']).isNotEmpty
+          ? _cleanText(map['product_name_snapshot'])
+          : (_cleanText(product['name']).isNotEmpty
+          ? _cleanText(product['name'])
+          : 'Produk'),
+      imagePath:
+      snapshot.isNotEmpty ? snapshot : _cleanText(product['image_url']),
+      price: _toInt(map['unit_price']),
+      quantity: _toInt(map['quantity'], 1),
       variant: map['variant_snapshot']?.toString(),
     );
   }
@@ -113,15 +150,34 @@ class OrderModel {
     }
   }
 
-  static String _formatDateTime(String? isoString, {required bool includeTime}) {
+  static String _formatDateTime(String? isoString,
+      {required bool includeTime}) {
     if (isoString == null || isoString.isEmpty) return '-';
     final dt = DateTime.tryParse(isoString)?.toLocal();
     if (dt == null) return isoString;
 
-    const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+    const days = [
+      'Senin',
+      'Selasa',
+      'Rabu',
+      'Kamis',
+      'Jumat',
+      'Sabtu',
+      'Minggu',
+    ];
     const months = [
-      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
     ];
     final dayName = days[dt.weekday - 1];
     final monthName = months[dt.month - 1];
@@ -135,16 +191,20 @@ class OrderModel {
   }
 
   factory OrderModel.fromSupabaseMap(Map<String, dynamic> map) {
-    final seller = map['seller'] as Map<String, dynamic>? ?? {};
-    final buyer = map['buyer'] as Map<String, dynamic>? ?? {};
-    final smpMap = map['safe_meeting_points'] as Map<String, dynamic>?;
+    final seller = _asMap(map['seller']);
+    final buyer = _asMap(map['buyer']);
+    final smpRaw = map['safe_meeting_points'];
     final rawItems = map['order_items'] as List<dynamic>? ?? [];
 
     final rawType = (map['order_type'] ?? 'beli').toString().toLowerCase();
     final bool isSewa = rawType == 'sewa' || rawType == 'rent';
 
     final parsedItems = rawItems
-        .map((e) => OrderItemModel.fromSupabaseMap(Map<String, dynamic>.from(e as Map)))
+        .map(
+          (e) => OrderItemModel.fromSupabaseMap(
+        Map<String, dynamic>.from(e as Map),
+      ),
+    )
         .toList();
 
     final int? durationDays = (map['rental_duration_days'] as num?)?.toInt();
@@ -162,14 +222,27 @@ class OrderModel {
       }
     }
 
-    final buyerName = (buyer['nama'] ?? 'Mahasiswa').toString();
-    final buyerEmail = (buyer['email'] ?? 'student@student.ub.ac.id').toString();
+    final buyerName = _cleanText(buyer['nama']).isNotEmpty
+        ? _cleanText(buyer['nama'])
+        : 'Mahasiswa';
+    final buyerEmail = _cleanText(buyer['email']).isNotEmpty
+        ? _cleanText(buyer['email'])
+        : 'student@student.ub.ac.id';
+
+    // Avatar toko: coba beberapa nama kolom yang umum dipakai.
+    // Sesuaikan dengan nama kolom foto di tabel profiles milikmu.
+    final avatarRaw = _cleanText(
+      seller['foto_profil'] ?? seller['avatar_url'] ?? seller['photo_url'],
+    );
 
     return OrderModel(
-      id: (map['id'] ?? '').toString(),
-      shopId: (map['seller_id'] ?? '').toString(),
-      shopName: (seller['nama'] ?? 'Toko Mahasiswa').toString(),
-      shopAvatarPath: (seller['foto_profil'] ?? 'assets/images/shop_avatar.png').toString(),
+      id: _cleanText(map['id']),
+      shopId: _cleanText(map['seller_id']),
+      shopName: _cleanText(seller['nama']).isNotEmpty
+          ? _cleanText(seller['nama'])
+          : 'Toko Mahasiswa',
+      shopAvatarPath:
+      avatarRaw.isNotEmpty ? avatarRaw : 'assets/images/shop_avatar.png',
       orderType: isSewa ? OrderType.sewa : OrderType.beli,
       status: _parseStatus((map['buyer_status'] ?? 'menunggu').toString()),
       items: parsedItems.isNotEmpty
@@ -178,29 +251,35 @@ class OrderModel {
         OrderItemModel(
           id: 'EMPTY',
           productName: 'Produk',
-          imagePath: 'assets/images/kemeja_putih.png',
+          imagePath: '',
           price: 0,
           quantity: 1,
         ),
       ],
-      orderDateText: _formatDateTime(map['ordered_at']?.toString(), includeTime: !isSewa),
+      orderDateText:
+      _formatDateTime(map['ordered_at']?.toString(), includeTime: !isSewa),
       receivedDateText: map['received_at'] != null
-          ? _formatDateTime(map['received_at']?.toString(), includeTime: !isSewa)
+          ? _formatDateTime(map['received_at']?.toString(),
+          includeTime: !isSewa)
           : 'Menunggu konfirmasi penerimaan',
       rentalDurationDays: durationDays,
       rentalRemainingText: remainingText,
       rentalReturnDateText: rentalEnd != null
           ? _formatDateTime(rentalEnd.toIso8601String(), includeTime: false)
           : null,
-      pickupAddress: (map['pickup_address'] ?? 'Area Ketawanggede, Malang').toString(),
-      safeMeetingPoint: smpMap != null
-          ? SafeMeetingPointModel.fromMap(smpMap)
+      pickupAddress: _cleanText(map['pickup_address']).isNotEmpty
+          ? _cleanText(map['pickup_address'])
+          : 'Area Ketawanggede, Malang',
+      safeMeetingPoint: smpRaw is Map
+          ? SafeMeetingPointModel.fromMap(Map<String, dynamic>.from(smpRaw))
           : SafeMeetingPointModel.campusPoints.first,
       buyerAccountInfo: '$buyerName - $buyerEmail',
-      productSubtotal: ((map['product_subtotal'] ?? 0) as num).toInt(),
-      shippingFee: ((map['shipping_fee'] ?? 5000) as num).toInt(),
-      discount: ((map['discount'] ?? 0) as num).toInt(),
-      paymentMethod: (map['payment_method'] ?? 'QRIS').toString(),
+      productSubtotal: _toInt(map['product_subtotal']),
+      shippingFee: _toInt(map['shipping_fee'], 5000),
+      discount: _toInt(map['discount']),
+      paymentMethod: _cleanText(map['payment_method']).isNotEmpty
+          ? _cleanText(map['payment_method'])
+          : 'QRIS',
       supabaseTransactionId: map['transaction_code']?.toString(),
     );
   }

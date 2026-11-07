@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/widgets/smart_image.dart';
 import '../../orders/models/order_model.dart';
 import '../models/cart_model.dart';
 
@@ -19,38 +20,6 @@ class CheckoutProductSection extends StatelessWidget {
           (Match m) => '${m[1]}.',
     );
     return 'Rp $str';
-  }
-
-  Widget _buildProductImage(String path) {
-    final cleanPath = path.trim();
-    final isNetwork = cleanPath.startsWith('http://') ||
-        cleanPath.startsWith('https://');
-
-    Widget fallbackWidget() {
-      return Container(
-        color: AppColors.primaryLight,
-        alignment: Alignment.center,
-        child: const Icon(
-          Icons.checkroom_rounded,
-          color: AppColors.primary,
-          size: 28,
-        ),
-      );
-    }
-
-    if (isNetwork) {
-      return Image.network(
-        cleanPath,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => fallbackWidget(),
-      );
-    }
-
-    return Image.asset(
-      cleanPath,
-      fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => fallbackWidget(),
-    );
   }
 
   @override
@@ -91,10 +60,12 @@ class CheckoutProductSection extends StatelessWidget {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: SizedBox(
+                    child: SmartImage(
+                      source: item.imagePath,
                       width: 64,
                       height: 64,
-                      child: _buildProductImage(item.imagePath),
+                      fit: BoxFit.cover,
+                      placeholderIcon: Icons.checkroom_rounded,
                     ),
                   ),
                   const SizedBox(width: 12),

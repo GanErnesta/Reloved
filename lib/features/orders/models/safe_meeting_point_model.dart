@@ -2,6 +2,10 @@ class SafeMeetingPointModel {
   final String id;
   final String name;
   final String fullAddress;
+
+  /// Bisa berupa URL (Supabase Storage), path storage, atau path asset lokal.
+  /// Tampilkan SELALU lewat `SmartImage(source: imagePath)` atau
+  /// `ImageSourceResolver.provider(imagePath)`, jangan langsung Image.asset.
   final String imagePath;
 
   const SafeMeetingPointModel({
@@ -11,12 +15,40 @@ class SafeMeetingPointModel {
     required this.imagePath,
   });
 
+  static const String _defaultAsset = 'assets/images/smp_perpustakaan.png';
+
+  /// True jika data berasal dari database (id UUID), false jika dari daftar
+  /// bawaan `campusPoints` (id berawalan "SMP-").
+  bool get isFromDatabase => !id.startsWith('SMP-');
+
+  /// Mencari gambar lokal berdasarkan kemiripan nama, dipakai sebagai cadangan
+  /// ketika kolom image_url di database kosong.
+  static String? _localAssetByName(String name) {
+    final target = name.trim().toLowerCase();
+    if (target.isEmpty) return null;
+
+    for (final point in campusPoints) {
+      final candidate = point.name.trim().toLowerCase();
+      if (candidate == target ||
+          candidate.contains(target) ||
+          target.contains(candidate)) {
+        return point.imagePath;
+      }
+    }
+    return null;
+  }
+
   factory SafeMeetingPointModel.fromMap(Map<String, dynamic> map) {
+    final name = (map['name'] ?? '').toString();
+    final rawImage = (map['image_url'] ?? '').toString().trim();
+
     return SafeMeetingPointModel(
       id: (map['id'] ?? '').toString(),
-      name: (map['name'] ?? '').toString(),
+      name: name,
       fullAddress: (map['full_address'] ?? '').toString(),
-      imagePath: (map['image_url'] ?? 'assets/images/smp_perpustakaan.png').toString(),
+      imagePath: rawImage.isNotEmpty && rawImage != 'null'
+          ? rawImage
+          : (_localAssetByName(name) ?? _defaultAsset),
     );
   }
 

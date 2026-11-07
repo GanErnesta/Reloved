@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/widgets/smart_image.dart';
 import '../models/seller_order_model.dart';
 import 'buyer_trust_score_badge.dart';
 import 'seller_safe_meeting_pill.dart';
 
-class SellerOrderCard extends StatelessWidget {
+class SellerOrderCard extends StatefulWidget {
   final SellerOrderModel order;
   final VoidCallback onAccept;
   final VoidCallback onReject;
@@ -21,10 +22,19 @@ class SellerOrderCard extends StatelessWidget {
     required this.onVerifyRentalReturn,
   });
 
+  @override
+  State<SellerOrderCard> createState() => _SellerOrderCardState();
+}
+
+class _SellerOrderCardState extends State<SellerOrderCard> {
+  bool _isExpanded = false;
+
+  SellerOrderModel get order => widget.order;
+
   String _formatRupiah(int amount) {
     final formatted = amount.toString().replaceAllMapped(
       RegExp(r'\B(?=(\d{3})+(?!\d))'),
-      (match) => '.',
+          (match) => '.',
     );
 
     return 'Rp $formatted';
@@ -62,6 +72,7 @@ class SellerOrderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = _theme;
     final isRental = order.mode == SellerOrderMode.penyewaan;
+    final items = order.displayItems;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -74,7 +85,7 @@ class SellerOrderCard extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(.035),
+            color: Colors.black.withValues(alpha: 0.035),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
@@ -187,27 +198,8 @@ class SellerOrderCard extends StatelessWidget {
 
                   const SizedBox(height: 16),
 
-                  // INFORMASI PRODUK
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: theme.innerBoxBgColor,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
-                      children: [
-                        _buildProductImage(),
-
-                        const SizedBox(width: 12),
-
-                        Expanded(
-                          child: isRental
-                              ? _buildRentalProductDetails()
-                              : _buildSaleProductDetails(),
-                        ),
-                      ],
-                    ),
-                  ),
+                  // INFORMASI PRODUK (bisa lebih dari satu)
+                  _buildProductsBox(theme, items, isRental),
 
                   const SizedBox(height: 12),
 
@@ -229,7 +221,7 @@ class SellerOrderCard extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                isRental ? 'Total Sewa' : 'Total Pembayaran',
+                                _totalLabel(isRental, items.length),
                                 style: const TextStyle(
                                   fontSize: 12,
                                   color: AppColors.textPrimary,
@@ -318,62 +310,166 @@ class SellerOrderCard extends StatelessWidget {
     );
   }
 
-  Widget _buildBuyerAvatar() {
-    final path = order.buyerAvatarPath;
+  String _totalLabel(bool isRental, int itemCount) {
+    final base = isRental ? 'Total Sewa' : 'Total Pembayaran';
+    return itemCount > 1 ? '$base ($itemCount produk)' : base;
+  }
 
-    return CircleAvatar(
-      radius: 21,
-      backgroundColor: AppColors.primaryLight,
-      backgroundImage: path.isNotEmpty ? AssetImage(path) : null,
-      onBackgroundImageError: (_, __) {},
-      child: path.isEmpty
-          ? Text(
-              order.buyerName.isNotEmpty
-                  ? order.buyerName[0].toUpperCase()
-                  : '?',
-              style: const TextStyle(
-                fontWeight: FontWeight.w700,
-                color: AppColors.primary,
+  // ---------------------------------------------------------------------------
+  // BAGIAN PRODUK (dropdown)
+  // ---------------------------------------------------------------------------
+
+  Widget _buildProductsBox(
+      _CardThemeColors theme,
+      List<SellerOrderItemModel> items,
+      bool isRental,
+      ) {
+    final bool hasMultiple = items.length > 1;
+    final List<SellerOrderItemModel> visibleItems =
+    _isExpanded ? items : [items.first];
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.innerBoxBgColor,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeInOut,
+        alignment: Alignment.topCenter,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (int i = 0; i < visibleItems.length; i++) ...[
+              if (i > 0)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Divider(
+                    height: 1,
+                    color: theme.borderColor.withValues(alpha: 0.7),
+                  ),
+                ),
+              _buildItemRow(visibleItems[i], isRental),
+            ],
+
+            if (hasMultiple) ...[
+              const SizedBox(height: 10),
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    _isExpanded = !_isExpanded;
+                  });
+                },
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: theme.headerTextColor.withValues(alpha: 0.35),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        _isExpanded
+                            ? 'Sembunyikan'
+                            : 'Lihat ${items.length - 1} produk lainnya',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: theme.headerTextColor,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        _isExpanded
+                            ? Icons.keyboard_arrow_up_rounded
+                            : Icons.keyboard_arrow_down_rounded,
+                        size: 18,
+                        color: theme.headerTextColor,
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            )
-          : null,
+            ],
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _buildProductImage() {
-    final path = order.productImagePath;
+  Widget _buildItemRow(SellerOrderItemModel item, bool isRental) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        _buildProductImage(item.imagePath),
 
+        const SizedBox(width: 12),
+
+        Expanded(
+          child: isRental
+              ? _buildRentalProductDetails(item)
+              : _buildSaleProductDetails(item),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBuyerAvatar() {
+    final String initial =
+    order.buyerName.isNotEmpty ? order.buyerName[0].toUpperCase() : '?';
+
+    return ClipOval(
+      child: SizedBox(
+        width: 42,
+        height: 42,
+        child: SmartImage(
+          source: order.buyerAvatarPath,
+          width: 42,
+          height: 42,
+          fit: BoxFit.cover,
+          placeholder: Text(
+            initial,
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              color: AppColors.primary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProductImage(String path) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: Container(
         width: 60,
         height: 60,
         color: Colors.white,
-        child: path.isEmpty
-            ? const Icon(
-                Icons.inventory_2_outlined,
-                color: AppColors.primary,
-              )
-            : Image.asset(
-                path,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) {
-                  return const Icon(
-                    Icons.inventory_2_outlined,
-                    color: AppColors.primary,
-                  );
-                },
-              ),
+        child: SmartImage(
+          source: path,
+          width: 60,
+          height: 60,
+          fit: BoxFit.cover,
+          placeholderIcon: Icons.inventory_2_outlined,
+        ),
       ),
     );
   }
 
-  Widget _buildSaleProductDetails() {
+  Widget _buildSaleProductDetails(SellerOrderItemModel item) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Qty: ${order.quantity} · ${_formatRupiah(order.unitPrice)}/pcs',
+          'Qty: ${item.quantity} · ${_formatRupiah(item.unitPrice)}/pcs',
           style: const TextStyle(
             fontSize: 12,
             color: Color(0xFF4A4A4A),
@@ -381,7 +477,7 @@ class SellerOrderCard extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          order.productName,
+          item.productName,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(
@@ -394,12 +490,15 @@ class SellerOrderCard extends StatelessWidget {
     );
   }
 
-  Widget _buildRentalProductDetails() {
+  Widget _buildRentalProductDetails(SellerOrderItemModel item) {
+    final int days = item.rentalDays ?? order.rentalDays ?? 1;
+    final int? deposit = item.depositAmount ?? order.depositAmount;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          order.productName,
+          item.productName,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(
@@ -410,16 +509,17 @@ class SellerOrderCard extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          '${_formatRupiah(order.unitPrice)}/hari · ${order.rentalDays ?? 1} hari',
+          '${_formatRupiah(item.unitPrice)}/hari · $days hari'
+              '${item.quantity > 1 ? ' · Qty ${item.quantity}' : ''}',
           style: const TextStyle(
             fontSize: 12,
             color: Color(0xFF4A4A4A),
           ),
         ),
-        if (order.depositAmount != null) ...[
+        if (deposit != null && deposit > 0) ...[
           const SizedBox(height: 4),
           Text(
-            'Deposit: ${_formatRupiah(order.depositAmount!)}',
+            'Deposit: ${_formatRupiah(deposit)}',
             style: const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -482,7 +582,7 @@ class SellerOrderCard extends StatelessWidget {
               child: SizedBox(
                 height: 44,
                 child: OutlinedButton(
-                  onPressed: onReject,
+                  onPressed: widget.onReject,
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.primary,
                     side: const BorderSide(
@@ -507,7 +607,7 @@ class SellerOrderCard extends StatelessWidget {
               child: SizedBox(
                 height: 44,
                 child: ElevatedButton(
-                  onPressed: onAccept,
+                  onPressed: widget.onAccept,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
@@ -539,7 +639,7 @@ class SellerOrderCard extends StatelessWidget {
           width: double.infinity,
           height: 44,
           child: ElevatedButton(
-            onPressed: onMarkSaleCompleted,
+            onPressed: widget.onMarkSaleCompleted,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
@@ -568,7 +668,7 @@ class SellerOrderCard extends StatelessWidget {
           width: double.infinity,
           height: 44,
           child: ElevatedButton(
-            onPressed: onVerifyRentalReturn,
+            onPressed: widget.onVerifyRentalReturn,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,

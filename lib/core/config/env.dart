@@ -22,4 +22,11 @@ class Env {
 
     return key;
   }
+  static String get midtransServerKey {
+    final key = dotenv.env['MIDTRANS_SERVER_KEY'];
+    if (key == null || key.isEmpty) {
+      throw Exception('MIDTRANS_SERVER_KEY tidak ditemukan pada file .env');
+    }
+    return key;
+  }
 }
