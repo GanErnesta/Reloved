@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
@@ -9,9 +10,13 @@ import '../services/product_service.dart';
 import '../widgets/product_card.dart';
 import 'product_detail_screen.dart';
 
-
 class AllProductsScreen extends StatefulWidget {
-  const AllProductsScreen({super.key});
+  final String? categoryName;
+
+  const AllProductsScreen({
+    super.key,
+    this.categoryName,
+  });
 
   @override
   State<AllProductsScreen> createState() => _AllProductsScreenState();
@@ -25,7 +30,21 @@ class _AllProductsScreenState extends State<AllProductsScreen> {
   @override
   void initState() {
     super.initState();
-    _productsFuture = _productService.getLatestProducts();
+    _loadProducts();
+  }
+
+  void _loadProducts() {
+    _productsFuture = widget.categoryName == null
+        ? _productService.getLatestProducts()
+        : _productService.getProductsByCategory(
+            widget.categoryName!,
+          );
+  }
+
+  void _retryLoadProducts() {
+    setState(() {
+      _loadProducts();
+    });
   }
 
   @override
@@ -37,21 +56,32 @@ class _AllProductsScreenState extends State<AllProductsScreen> {
           children: [
             _buildHeader(context),
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.md,
-                  0,
-                  AppSpacing.md,
-                  AppSpacing.lg,
-                ),
-                child: Column(
-                  children: [
-                    _buildPromoBanner(),
-                    const SizedBox(height: AppSpacing.md),
-                    _buildProductGrid(),
-                    const SizedBox(height: AppSpacing.md),
-                    _buildInformationText(),
-                  ],
+              child: RefreshIndicator(
+                color: AppColors.primary,
+                onRefresh: () async {
+                  setState(() {
+                    _loadProducts();
+                  });
+
+                  await _productsFuture;
+                },
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.md,
+                    0,
+                    AppSpacing.md,
+                    AppSpacing.lg,
+                  ),
+                  child: Column(
+                    children: [
+                      _buildPromoBanner(),
+                      const SizedBox(height: AppSpacing.md),
+                      _buildProductGrid(),
+                      const SizedBox(height: AppSpacing.md),
+                      _buildInformationText(),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -62,8 +92,15 @@ class _AllProductsScreenState extends State<AllProductsScreen> {
   }
 
   Widget _buildHeader(BuildContext context) {
+    final title = widget.categoryName ?? 'Semua Produk';
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.md, 8, AppSpacing.md, 12),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        8,
+        AppSpacing.md,
+        12,
+      ),
       child: Row(
         children: [
           GestureDetector(
@@ -81,20 +118,20 @@ class _AllProductsScreenState extends State<AllProductsScreen> {
               ),
             ),
           ),
-          const Spacer(),
-          Row(
-            children: [
-              const Icon(Icons.location_on, color: AppColors.primary, size: 18),
-              const SizedBox(width: 4),
-              Text(
-                'Lowokwaru',
-                style: AppTextStyles.caption.copyWith(
-                  color: AppColors.primary,
-                  fontSize: 12,
-                ),
+          Expanded(
+            child: Text(
+              title,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.bodyMedium.copyWith(
+                color: AppColors.primary,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
               ),
-            ],
+            ),
           ),
+          const SizedBox(width: 36),
         ],
       ),
     );
@@ -103,7 +140,10 @@ class _AllProductsScreenState extends State<AllProductsScreen> {
   Widget _buildPromoBanner() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 9,
+      ),
       decoration: BoxDecoration(
         color: AppColors.primary,
         borderRadius: BorderRadius.circular(AppRadius.md),
@@ -145,7 +185,9 @@ class _AllProductsScreenState extends State<AllProductsScreen> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Padding(
             padding: EdgeInsets.symmetric(vertical: 60),
-            child: Center(child: CircularProgressIndicator()),
+            child: Center(
+              child: CircularProgressIndicator(),
+            ),
           );
         }
 
@@ -153,9 +195,25 @@ class _AllProductsScreenState extends State<AllProductsScreen> {
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 60),
             child: Center(
-              child: Text(
-                'Gagal memuat produk',
-                style: AppTextStyles.caption.copyWith(color: AppColors.danger),
+              child: Column(
+                children: [
+                  const Icon(
+                    Icons.wifi_off_rounded,
+                    size: 40,
+                    color: Colors.grey,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Gagal memuat produk',
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.danger,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _retryLoadProducts,
+                    child: const Text('Coba Lagi'),
+                  ),
+                ],
               ),
             ),
           );
@@ -167,11 +225,21 @@ class _AllProductsScreenState extends State<AllProductsScreen> {
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 60),
             child: Center(
-              child: Text(
-                'Belum ada produk',
-                style: AppTextStyles.caption.copyWith(
-                  color: AppColors.textSecondary,
-                ),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.inventory_2_outlined,
+                    size: 45,
+                    color: AppColors.textSecondary,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Produk belum tersedia',
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
               ),
             ),
           );
@@ -181,7 +249,8 @@ class _AllProductsScreenState extends State<AllProductsScreen> {
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: products.length,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          gridDelegate:
+              const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
             crossAxisSpacing: 14,
             mainAxisSpacing: 18,
@@ -201,7 +270,9 @@ class _AllProductsScreenState extends State<AllProductsScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => ProductDetailScreen(product: product),
+                    builder: (_) => ProductDetailScreen(
+                      product: product,
+                    ),
                   ),
                 );
               },
@@ -220,7 +291,10 @@ class _AllProductsScreenState extends State<AllProductsScreen> {
           children: [
             TextSpan(
               text: 'Barang yang kamu cari habis? ',
-              style: AppTextStyles.caption.copyWith(fontSize: 10, height: 1.4),
+              style: AppTextStyles.caption.copyWith(
+                fontSize: 10,
+                height: 1.4,
+              ),
             ),
             TextSpan(
               text: 'Ketuk di sini',
@@ -234,7 +308,10 @@ class _AllProductsScreenState extends State<AllProductsScreen> {
             TextSpan(
               text:
                   ' untuk panduan pengadaan resmi atribut di Koperasi Mahasiswa (Kopma) UB.',
-              style: AppTextStyles.caption.copyWith(fontSize: 10, height: 1.4),
+              style: AppTextStyles.caption.copyWith(
+                fontSize: 10,
+                height: 1.4,
+              ),
             ),
           ],
         ),
@@ -246,6 +323,7 @@ class _AllProductsScreenState extends State<AllProductsScreen> {
 
 String formatPrice(double price) {
   final value = price.toInt().toString();
+
   final formatted = value.replaceAllMapped(
     RegExp(r'\B(?=(\d{3})+(?!\d))'),
     (match) => '.',

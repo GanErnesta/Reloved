@@ -334,7 +334,22 @@ class _HomeScreenState extends State<HomeScreen> {
 
             const SliverToBoxAdapter(child: HomeSearchBar()),
 
-            const SliverToBoxAdapter(child: CategoryMenu()),
+            SliverToBoxAdapter(
+              child: CategoryMenu(
+                onCategoryTap: (categoryName) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => AllProductsScreen(
+                        categoryName: categoryName.isEmpty
+                            ? null
+                            : categoryName,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
 
             const SliverToBoxAdapter(child: InformationSection()),
 
