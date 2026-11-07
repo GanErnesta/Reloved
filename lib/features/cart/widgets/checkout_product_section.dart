@@ -4,7 +4,7 @@ import '../../orders/models/order_model.dart';
 import '../models/cart_model.dart';
 
 class CheckoutProductSection extends StatelessWidget {
-  final String headerTitle; // "Beli" atau "Sewa"
+  final String headerTitle;
   final List<CartItemModel> items;
 
   const CheckoutProductSection({
@@ -21,63 +21,80 @@ class CheckoutProductSection extends StatelessWidget {
     return 'Rp $str';
   }
 
+  Widget _buildProductImage(String path) {
+    final cleanPath = path.trim();
+    final isNetwork = cleanPath.startsWith('http://') ||
+        cleanPath.startsWith('https://');
+
+    Widget fallbackWidget() {
+      return Container(
+        color: AppColors.primaryLight,
+        alignment: Alignment.center,
+        child: const Icon(
+          Icons.checkroom_rounded,
+          color: AppColors.primary,
+          size: 28,
+        ),
+      );
+    }
+
+    if (isNetwork) {
+      return Image.network(
+        cleanPath,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => fallbackWidget(),
+      );
+    }
+
+    return Image.asset(
+      cleanPath,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => fallbackWidget(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (items.isEmpty) return const SizedBox.shrink();
-
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(18),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            headerTitle,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppColors.primaryLight,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              headerTitle.toUpperCase(),
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: AppColors.primary,
+              ),
             ),
           ),
           const SizedBox(height: 12),
-          ...List.generate(items.length, (index) {
-            final item = items[index];
-            final bool isSewa = item.type == OrderType.sewa;
-
+          ...items.map((item) {
+            final isSewa = item.type == OrderType.sewa;
             return Padding(
-              padding: EdgeInsets.only(
-                bottom: index < items.length - 1 ? 12 : 0,
-              ),
+              padding: const EdgeInsets.only(bottom: 12),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      width: 74,
-                      height: 74,
-                      color: AppColors.primaryLight,
-                      child: Image.asset(
-                        item.imagePath,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const Icon(
-                          Icons.checkroom_rounded,
-                          color: AppColors.primary,
-                          size: 32,
-                        ),
-                      ),
+                    child: SizedBox(
+                      width: 64,
+                      height: 64,
+                      child: _buildProductImage(item.imagePath),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -89,28 +106,41 @@ class CheckoutProductSection extends StatelessWidget {
                           item.productName,
                           style: const TextStyle(
                             fontSize: 14,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w700,
                             color: AppColors.textPrimary,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 3),
                         Text(
                           isSewa
-                              ? '${item.selectedRentalDays} hari, ${item.quantity} pcs'
-                              : '${item.quantity} pcs · ${item.subtitleInfo}',
+                              ? '${item.subtitleInfo} • ${item.selectedRentalDays} Hari'
+                              : item.subtitleInfo,
                           style: const TextStyle(
-                            fontSize: 13,
-                            color: AppColors.textPrimary,
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _formatRupiah(item.subtotalPrice),
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.primary,
-                          ),
+                        const SizedBox(height: 6),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              _formatRupiah(item.subtotalPrice),
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                            Text(
+                              'x${item.quantity}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),

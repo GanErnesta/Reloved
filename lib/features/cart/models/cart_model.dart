@@ -14,6 +14,7 @@ class CartItemModel {
   final String subtitleInfo;
   final int unitPrice;
   final int availableStock;
+  final int minPurchase;
   final DateTime addedAt;
 
   bool isSelected;
@@ -36,18 +37,51 @@ class CartItemModel {
     required this.subtitleInfo,
     required this.unitPrice,
     this.availableStock = 5,
+    this.minPurchase = 1,
     required this.addedAt,
-    this.isSelected = false,
+    this.isSelected = true,
     this.quantity = 1,
     this.selectedRentalDays = 3,
     this.rentalStartDate,
     this.refundableDeposit = 100000,
   });
 
+  static String _extractImageUrl(Map<String, dynamic> product) {
+    final dynamic rawUrl = product['image_url'] ??
+        product['imageUrl'] ??
+        product['image'] ??
+        product['photo_url'] ??
+        product['thumbnail_url'];
+
+    if (rawUrl != null && rawUrl.toString().trim().isNotEmpty) {
+      return rawUrl.toString().trim();
+    }
+
+    final dynamic rawList = product['images'] ?? product['image_urls'];
+    if (rawList is List && rawList.isNotEmpty) {
+      final first = rawList.first?.toString().trim() ?? '';
+      if (first.isNotEmpty) return first;
+    }
+
+    return 'assets/images/kemeja_putih.png';
+  }
+
   factory CartItemModel.fromSupabaseMap(Map<String, dynamic> map) {
-    final product = map['products'] as Map<String, dynamic>? ?? {};
-    final seller = product['profiles'] as Map<String, dynamic>? ?? {};
-    final rawType = (map['transaction_type'] ?? product['transaction_type'] ?? 'sale')
+    final product = map['products'] is Map
+        ? Map<String, dynamic>.from(map['products'] as Map)
+        : <String, dynamic>{};
+
+    final seller = product['profiles'] is Map
+        ? Map<String, dynamic>.from(product['profiles'] as Map)
+        : <String, dynamic>{};
+
+    final category = product['categories'] is Map
+        ? Map<String, dynamic>.from(product['categories'] as Map)
+        : <String, dynamic>{};
+
+    final rawType = (map['transaction_type'] ??
+        product['transaction_type'] ??
+        'sale')
         .toString()
         .toLowerCase();
     final bool isSewa = rawType == 'rent' || rawType == 'sewa';
@@ -56,24 +90,46 @@ class CartItemModel {
         ? ((product['rental_price'] ?? product['price'] ?? 0) as num).toInt()
         : ((product['price'] ?? 0) as num).toInt();
 
+    final String conditionText =
+    (product['condition'] ?? '').toString().trim();
+    final String variantText = (product['variant'] ?? '').toString().trim();
+    final String categoryName = (category['name'] ?? '').toString().trim();
+
+    String subtitle = 'Kondisi Baru/Tag';
+    if (variantText.isNotEmpty) {
+      subtitle = variantText;
+    } else if (conditionText.isNotEmpty) {
+      subtitle = conditionText.toLowerCase().startsWith('kondisi')
+          ? conditionText
+          : 'Kondisi $conditionText';
+    } else if (categoryName.isNotEmpty) {
+      subtitle = categoryName;
+    }
+
     return CartItemModel(
       id: (map['id'] ?? '').toString(),
-      productId: (map['product_id'] ?? '').toString(),
-      shopId: (product['seller_id'] ?? '').toString(),
-      shopName: (seller['nama'] ?? 'Toko Mahasiswa').toString(),
+      productId: (map['product_id'] ?? product['id'] ?? '').toString(),
+      shopId: (product['seller_id'] ??
+          product['user_id'] ??
+          seller['id'] ??
+          'shop-default')
+          .toString(),
+      shopName: (seller['nama'] ??
+          seller['full_name'] ??
+          seller['username'] ??
+          'Toko Mahasiswa')
+          .toString(),
       sellerCity: (seller['city'] ?? 'Malang').toString(),
       sellerPickupAddress: (seller['address'] ??
           'Area Ketawanggede, Kecamatan Lowokwaru, Kota Malang.')
           .toString(),
       type: isSewa ? OrderType.sewa : OrderType.beli,
-      productName: (product['name'] ?? '').toString(),
-      imagePath:
-      (product['image_url'] ?? 'assets/images/kemeja_putih.png').toString(),
-      subtitleInfo: (product['variant'] ??
-          'Kondisi ${product['condition'] ?? 'sangat baik'}')
-          .toString(),
+      productName: (product['name'] ?? 'Produk').toString(),
+      imagePath: _extractImageUrl(product),
+      subtitleInfo: subtitle,
       unitPrice: unitPrice,
       availableStock: (product['stock'] as num?)?.toInt() ?? 1,
+      minPurchase: (product['min_purchase'] as num?)?.toInt() ?? 1,
       addedAt: DateTime.tryParse((map['created_at'] ?? '').toString()) ??
           DateTime.now(),
       isSelected: (map['is_selected'] as bool?) ?? true,

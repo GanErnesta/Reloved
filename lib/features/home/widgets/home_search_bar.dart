@@ -1,10 +1,11 @@
 
+import 'package:application_reloved/features/cart/screens/cart_screen.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_radius.dart';
 import '../../../core/constants/app_text_styles.dart';
-import '../../transaction/screens/cart_screen.dart';
+import '../../cart/screens/cart_screen.dart';
 import '../screens/search_screen.dart';
 
 class HomeSearchBar extends StatelessWidget {

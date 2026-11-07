@@ -24,32 +24,38 @@ class CartController extends ChangeNotifier {
   bool get isLoading => _isLoading;
 
   List<CartItemModel> _items = [];
-  List<SafeMeetingPointModel> _meetingPoints = SafeMeetingPointModel.campusPoints;
+  List<SafeMeetingPointModel> _meetingPoints =
+      SafeMeetingPointModel.campusPoints;
   List<SafeMeetingPointModel> get meetingPoints => _meetingPoints;
 
   Future<void> loadCartFromSupabase() async {
     _isLoading = true;
     notifyListeners();
 
+    // 1. Ambil daftar titik temu (Safe Meeting Points) secara independen
     try {
-      // 1. Ambil daftar titik temu dari database jika sudah ada
       final dbPoints = await _repository.fetchSafeMeetingPoints();
       if (dbPoints.isNotEmpty) {
         _meetingPoints = dbPoints;
       }
+    } catch (e) {
+      debugPrint('Info fetchSafeMeetingPoints: $e');
+    }
 
-      // 2. Cek apakah ada sesi pembayaran yang masih stuck / pending di database
+    // 2. Cek sesi pembayaran pending secara independen
+    try {
       final pendingMap = await _repository.fetchActivePaymentSession();
       if (pendingMap != null) {
-        final expiresAt = DateTime.tryParse(pendingMap['expires_at'].toString())?.toLocal() ??
-            DateTime.now().add(const Duration(minutes: 30));
+        final expiresAt =
+            DateTime.tryParse(pendingMap['expires_at'].toString())?.toLocal() ??
+                DateTime.now().add(const Duration(minutes: 30));
 
         if (DateTime.now().isAfter(expiresAt)) {
-          // Jika ternyata sudah lewat 30 menit, langsung batalkan di DB
           await _repository.cancelOrExpireSession(pendingMap['id'].toString());
           _activePaymentSession = null;
         } else {
-          final smpData = pendingMap['safe_meeting_points'] as Map<String, dynamic>?;
+          final smpData =
+          pendingMap['safe_meeting_points'] as Map<String, dynamic>?;
           _activePaymentSession = PendingPaymentSession(
             sessionId: pendingMap['id'].toString(),
             checkedOutItems: const [],
@@ -59,7 +65,8 @@ class CartController extends ChangeNotifier {
             pickupAddress: 'Area Ketawanggede, Malang',
             buyerAccountInfo: 'Mahasiswa UB',
             paymentMethod: (pendingMap['payment_method'] ?? 'QRIS').toString(),
-            productSubtotal: ((pendingMap['product_subtotal'] ?? 0) as num).toInt(),
+            productSubtotal:
+            ((pendingMap['product_subtotal'] ?? 0) as num).toInt(),
             shippingFee: ((pendingMap['shipping_fee'] ?? 5000) as num).toInt(),
             discount: ((pendingMap['discount'] ?? 0) as num).toInt(),
             expiresAt: expiresAt,
@@ -67,11 +74,15 @@ class CartController extends ChangeNotifier {
           );
         }
       }
+    } catch (e) {
+      debugPrint('Info fetchActivePaymentSession: $e');
+    }
 
-      // 3. Ambil daftar barang di keranjang
+    // 3. Ambil daftar barang di keranjang (Selalu dijalankan)
+    try {
       _items = await _repository.fetchCartItems();
     } catch (e) {
-      debugPrint('Error loadCartFromSupabase: $e');
+      debugPrint('Error fetchCartItems: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -126,7 +137,8 @@ class CartController extends ChangeNotifier {
   }
 
   void toggleShopSelection(String shopId, OrderType? filterType, bool value) {
-    final list = getFilteredItems(filterType).where((item) => item.shopId == shopId);
+    final list =
+    getFilteredItems(filterType).where((item) => item.shopId == shopId);
     for (final item in list) {
       item.isSelected = value;
       _repository.updateCartItem(item.id, isSelected: value);
@@ -187,7 +199,6 @@ class CartController extends ChangeNotifier {
     return getSelectedItems(filterType).length;
   }
 
-  /// Memulai sesi pembayaran dan memanggil RPC start_checkout_payment_session di Supabase
   PendingPaymentSession startPaymentSession({
     required List<CartItemModel> itemsToCheckout,
     required SafeMeetingPointModel safeMeetingPoint,
@@ -216,7 +227,6 @@ class CartController extends ChangeNotifier {
     );
     notifyListeners();
 
-    // Sinkronisasi pembuatan payment_session & pemotongan stok ke Supabase
     _syncStartSessionToSupabase(
       itemsToCheckout: itemsToCheckout,
       safeMeetingPoint: safeMeetingPoint,
