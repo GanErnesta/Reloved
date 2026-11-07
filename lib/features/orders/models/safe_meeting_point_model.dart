@@ -11,6 +11,15 @@ class SafeMeetingPointModel {
     required this.imagePath,
   });
 
+  factory SafeMeetingPointModel.fromMap(Map<String, dynamic> map) {
+    return SafeMeetingPointModel(
+      id: (map['id'] ?? '').toString(),
+      name: (map['name'] ?? '').toString(),
+      fullAddress: (map['full_address'] ?? '').toString(),
+      imagePath: (map['image_url'] ?? 'assets/images/smp_perpustakaan.png').toString(),
+    );
+  }
+
   static const List<SafeMeetingPointModel> campusPoints = [
     SafeMeetingPointModel(
       id: 'SMP-1',
@@ -63,10 +72,10 @@ class SafeMeetingPointModel {
     ),
     SafeMeetingPointModel(
       id: 'SMP-8',
-      name: 'Pos Keamanan Gerbang Veteran UB',
+      name: 'Gedung Kreativitas Mahasiswa Filkom UB',
       fullAddress:
-      'Gerbang Veteran UB, Jl. Veteran, Ketawanggede, Kec. Lowokwaru, Kota Malang, Jawa Timur 65145',
-      imagePath: 'assets/images/smp_gerbang_veteran.png',
+      'GKM FILKOM UB, Jl. Veteran, Ketawanggede, Kec. Lowokwaru, Kota Malang, Jawa Timur 65145',
+      imagePath: 'assets/images/smp_filkom.png',
     ),
   ];
 }
