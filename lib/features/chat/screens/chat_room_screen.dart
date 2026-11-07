@@ -45,6 +45,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   bool _isSending = false;
   String? _lastMessageId;
 
+  String? _otherUserPhotoUrl;
+
   @override
   void initState() {
     super.initState();
@@ -54,6 +56,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     _messagesStream = _chatService.watchMessages(widget.conversationId);
 
     _markMessagesAsRead();
+    _loadOtherUserProfile();
   }
 
   Future<void> _markMessagesAsRead() async {
@@ -134,6 +137,22 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       );
   }
 
+  Future<void> _loadOtherUserProfile() async {
+    try {
+      final profile = await _chatService.fetchOtherParticipantProfile(
+        widget.conversationId,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _otherUserPhotoUrl = profile?['foto_profil']?.toString();
+      });
+    } catch (e) {
+      debugPrint('ERROR LOAD CHAT PROFILE: $e');
+    }
+  }
+
   @override
   void dispose() {
     _messageController.dispose();
@@ -150,7 +169,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
           children: [
             ChatRoomHeader(
               name: widget.sellerName,
-              avatarUrl: widget.sellerAvatar, // 3. Kirimkan avatar ke header
+              avatarUrl: _otherUserPhotoUrl,
               onBack: () {
                 Navigator.pop(context);
               },
