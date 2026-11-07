@@ -95,8 +95,7 @@ class ChatService {
     final Map<String, Map<String, dynamic>> profiles = {};
 
     for (final profile in profileResult) {
-      profiles[profile['id'].toString()] =
-          Map<String, dynamic>.from(profile);
+      profiles[profile['id'].toString()] = Map<String, dynamic>.from(profile);
     }
 
     final conversations = <Map<String, dynamic>>[];
@@ -133,18 +132,14 @@ class ChatService {
     return conversations;
   }
 
-  Future<List<MessageModel>> fetchMessages(
-    String conversationId,
-  ) async {
+  Future<List<MessageModel>> fetchMessages(String conversationId) async {
     final result = await _client
         .from('messages')
         .select()
         .eq('conversation_id', conversationId)
         .order('created_at', ascending: true);
 
-    return result
-        .map((item) => MessageModel.fromJson(item))
-        .toList();
+    return result.map((item) => MessageModel.fromJson(item)).toList();
   }
 
   Future<MessageModel> sendMessage({
@@ -170,9 +165,7 @@ class ChatService {
     return MessageModel.fromJson(result);
   }
 
-  Stream<List<MessageModel>> watchMessages(
-    String conversationId,
-  ) {
+  Stream<List<MessageModel>> watchMessages(String conversationId) {
     return _client
         .from('messages')
         .stream(primaryKey: ['id'])
@@ -182,17 +175,13 @@ class ChatService {
               .map((item) => MessageModel.fromJson(item))
               .toList();
 
-          messages.sort(
-            (a, b) => a.createdAt.compareTo(b.createdAt),
-          );
+          messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
 
           return messages;
         });
   }
 
-  Future<void> markMessagesAsRead(
-    String conversationId,
-  ) async {
+  Future<void> markMessagesAsRead(String conversationId) async {
     final userId = _currentUserId;
 
     await _client
@@ -201,5 +190,30 @@ class ChatService {
         .eq('conversation_id', conversationId)
         .neq('sender_id', userId)
         .eq('is_read', false);
+  }
+
+  Future<Map<String, dynamic>?> fetchOtherParticipantProfile(
+    String conversationId,
+  ) async {
+    final userId = _currentUserId;
+
+    final conversation = await _client
+        .from('conversations')
+        .select('buyer_id, seller_id')
+        .eq('id', conversationId)
+        .single();
+
+    final buyerId = conversation['buyer_id'].toString();
+    final sellerId = conversation['seller_id'].toString();
+
+    final otherUserId = userId == buyerId ? sellerId : buyerId;
+
+    final profile = await _client
+        .from('public_profiles')
+        .select('id, nama, foto_profil')
+        .eq('id', otherUserId)
+        .maybeSingle();
+
+    return profile == null ? null : Map<String, dynamic>.from(profile);
   }
 }
