@@ -196,6 +196,57 @@ class ChatService {
         .eq('is_read', false);
   }
 
+  Future<Map<String, dynamic>?> fetchConversationDetails(
+    String conversationId,
+  ) async {
+    final userId = _currentUserId;
+
+    final conversation = await _client
+        .from('conversations')
+        .select('''
+        buyer_id,
+        seller_id,
+        product:products!conversations_product_id_fkey(
+          id,
+          name,
+          price,
+          image_url
+        )
+      ''')
+        .eq('id', conversationId)
+        .maybeSingle();
+
+    if (conversation == null) return null;
+
+    final buyerId = conversation['buyer_id'].toString();
+    final sellerId = conversation['seller_id'].toString();
+
+    if (userId != buyerId && userId != sellerId) {
+      return null;
+    }
+
+    final otherUserId = userId == buyerId ? sellerId : buyerId;
+
+    final profile = await _client
+        .from('public_profiles')
+        .select('id, nama, foto_profil')
+        .eq('id', otherUserId)
+        .maybeSingle();
+
+    final product = conversation['product'];
+
+    if (product is! Map) return null;
+
+    return {
+      'conversationId': conversationId,
+      'sellerName': profile?['nama']?.toString() ?? 'Pengguna Reloved',
+      'sellerAvatar': profile?['foto_profil']?.toString(),
+      'productName': product['name']?.toString() ?? 'Produk',
+      'productPrice': product['price']?.toString() ?? '0',
+      'productImage': product['image_url']?.toString() ?? '',
+    };
+  }
+
   Future<Map<String, dynamic>?> fetchOtherParticipantProfile(
     String conversationId,
   ) async {
