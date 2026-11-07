@@ -14,6 +14,7 @@ import '../widgets/promo_banner.dart';
 import '../widgets/bundling_card.dart';
 import '../widgets/location_permission_modal.dart';
 import 'all_products_screen.dart';
+import '../../community/screens/community_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -25,6 +26,9 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   bool _isLocationDetected = false;
   final Geocoding _geocoding = Geocoding();
+
+  final GlobalKey<ProductSectionState> _productSectionKey =
+      GlobalKey<ProductSectionState>();
 
   String _locationName = 'Aktifkan Lokasi';
   bool _isLoadingLocation = false;
@@ -39,6 +43,14 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _checkExistingLocationPermission();
+  }
+
+  Future<void> _refreshHome() async {
+    try {
+      await _productSectionKey.currentState?.refresh();
+    } catch (e) {
+      debugPrint('ERROR REFRESH HOME: $e');
+    }
   }
 
   Future<void> _checkExistingLocationPermission() async {
@@ -152,6 +164,7 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _locationName = 'Lokasi Gagal';
         _isLoadingLocation = false;
+        _isLocationDetected = false;
       });
     }
   }
@@ -175,15 +188,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
     _isUpdatingLocation = true;
 
-    if (mounted) {
-      setState(() {
-        _isLoadingLocation = true;
-      });
-    }
+    setState(() {
+      _isLoadingLocation = true;
+    });
 
     try {
-      final List<Placemark> placemarks = await _geocoding
-          .placemarkFromCoordinates(position.latitude, position.longitude);
+      final placemarks = await _geocoding.placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
 
       if (!mounted) return;
 
@@ -193,13 +206,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
       final place = placemarks.first;
 
-      final String kelurahan = place.subLocality?.trim() ?? '';
+      final kelurahan = place.subLocality?.trim() ?? '';
+      final kecamatan = place.subAdministrativeArea?.trim() ?? '';
 
-      final String kecamatan = place.subAdministrativeArea?.trim() ?? '';
+      final locationParts = [kelurahan, kecamatan];
 
-      final List<String> locationParts = [kelurahan, kecamatan];
-
-      final String location = locationParts
+      final location = locationParts
           .where((item) => item.isNotEmpty)
           .toSet()
           .join(', ');
@@ -238,59 +250,6 @@ class _HomeScreenState extends State<HomeScreen> {
     } finally {
       _isUpdatingLocation = false;
     }
-    try {
-      final List<Placemark> placemarks = await _geocoding
-          .placemarkFromCoordinates(position.latitude, position.longitude);
-
-      if (!mounted) return;
-
-      if (placemarks.isEmpty) {
-        throw Exception('Alamat tidak ditemukan');
-      }
-
-      final place = placemarks.first;
-
-      final String kelurahan = place.subLocality?.trim() ?? '';
-
-      final String kecamatan = place.subAdministrativeArea?.trim() ?? '';
-
-      final List<String> locationParts = [kelurahan, kecamatan];
-
-      final String location = locationParts
-          .where((item) => item.isNotEmpty)
-          .toSet()
-          .join(', ');
-
-      if (location.isEmpty) {
-        throw Exception('Nama kelurahan dan kecamatan tidak tersedia');
-      }
-
-      _lastLatitude = position.latitude;
-      _lastLongitude = position.longitude;
-
-      setState(() {
-        _locationName = location;
-        _isLoadingLocation = false;
-      });
-
-      debugPrint('LOKASI BERHASIL DIPERBARUI: $location');
-    } catch (e) {
-      debugPrint('ERROR GEOCODING: $e');
-
-      if (mounted) {
-        setState(() {
-          _isLoadingLocation = false;
-
-          if (_lastLatitude == null) {
-            _locationName = 'Lokasi Gagal';
-          }
-        });
-      }
-
-      rethrow;
-    } finally {
-      _isUpdatingLocation = false;
-    }
   }
 
   void _showLocationModal() {
@@ -321,67 +280,95 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(
-              child: HomeHeader(
-                onLocationTap: _showLocationModal,
-                locationName: _locationName,
-                isLoadingLocation: _isLoadingLocation,
-                isLocationDetected: _isLocationDetected,
+        child: RefreshIndicator(
+          color: const Color(0xFF9F283A),
+          backgroundColor: Colors.white,
+          onRefresh: _refreshHome,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverToBoxAdapter(
+                child: HomeHeader(
+                  onLocationTap: _showLocationModal,
+                  locationName: _locationName,
+                  isLoadingLocation: _isLoadingLocation,
+                  isLocationDetected: _isLocationDetected,
+                ),
               ),
-            ),
 
-            const SliverToBoxAdapter(child: HomeSearchBar()),
+              const SliverToBoxAdapter(child: HomeSearchBar()),
 
-            SliverToBoxAdapter(
-              child: CategoryMenu(
-                onCategoryTap: (categoryName) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => AllProductsScreen(
-                        categoryName: categoryName.isEmpty
-                            ? null
-                            : categoryName,
+              SliverToBoxAdapter(
+                child: CategoryMenu(
+                  onCategoryTap: (categoryName) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => AllProductsScreen(
+                          categoryName: categoryName.isEmpty
+                              ? null
+                              : categoryName,
+                        ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
-            ),
 
-            const SliverToBoxAdapter(child: InformationSection()),
-
-            SliverToBoxAdapter(
-              child: PromoBanner(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const MabaProductsScreen(),
-                    ),
-                  );
-                },
+              SliverToBoxAdapter(
+                child: InformationSection(
+                  onRentalTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            const AllProductsScreen(rentalOnly: true),
+                      ),
+                    );
+                  },
+                  onCommunityTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const CommunityScreen(),
+                      ),
+                    );
+                  },
+                ),
               ),
-            ),
-            SliverToBoxAdapter(child: _buildBundlingSection()),
 
-            SliverToBoxAdapter(
-              child: ProductSection(
-                onSeeAll: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const AllProductsScreen(),
-                    ),
-                  );
-                },
+              SliverToBoxAdapter(
+                child: PromoBanner(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const MabaProductsScreen(),
+                      ),
+                    );
+                  },
+                ),
               ),
-            ),
 
-            const SliverToBoxAdapter(child: SizedBox(height: 24)),
-          ],
+              SliverToBoxAdapter(child: _buildBundlingSection()),
+
+              SliverToBoxAdapter(
+                child: ProductSection(
+                  key: _productSectionKey,
+                  onSeeAll: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const AllProductsScreen(),
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+            ],
+          ),
         ),
       ),
     );

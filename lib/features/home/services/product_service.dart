@@ -369,9 +369,7 @@ class ProductService {
       uniqueProducts.values.toList(),
     );
 
-    products.sort(
-      (a, b) => b.createdAt.compareTo(a.createdAt),
-    );
+    products.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
     return products;
   }
@@ -416,9 +414,7 @@ class ProductService {
     return _mapProductsWithProfiles(response);
   }
 
-  Future<List<Product>> getProductsBySellerId(
-    String sellerId,
-  ) async {
+  Future<List<Product>> getProductsBySellerId(String sellerId) async {
     if (sellerId.isEmpty) {
       throw Exception('ID penjual tidak valid.');
     }
@@ -438,9 +434,7 @@ class ProductService {
     return _mapProductsWithProfiles(response);
   }
 
-  Future<List<Product>> getProductsByCategory(
-    String categoryName,
-  ) async {
+  Future<List<Product>> getProductsByCategory(String categoryName) async {
     final normalizedName = categoryName.replaceAll('\n', ' ').trim();
 
     final categoryResponse = await _supabase
@@ -464,6 +458,23 @@ class ProductService {
         ''')
         .eq('status', 'available')
         .eq('category_id', categoryResponse['id'])
+        .order('created_at', ascending: false);
+
+    return _mapProductsWithProfiles(response);
+  }
+
+  Future<List<Product>> getRentalProducts() async {
+    final response = await _supabase
+        .from('products')
+        .select('''
+          *,
+          categories (
+            id,
+            name
+          )
+        ''')
+        .eq('status', 'available')
+        .eq('transaction_type', 'rent')
         .order('created_at', ascending: false);
 
     return _mapProductsWithProfiles(response);

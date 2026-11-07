@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
@@ -17,10 +18,10 @@ class ProductSection extends StatefulWidget {
   });
 
   @override
-  State<ProductSection> createState() => _ProductSectionState();
+  State<ProductSection> createState() => ProductSectionState();
 }
 
-class _ProductSectionState extends State<ProductSection> {
+class ProductSectionState extends State<ProductSection> {
   final ProductService _productService = ProductService();
 
   late Future<List<Product>> _productsFuture;
@@ -28,7 +29,21 @@ class _ProductSectionState extends State<ProductSection> {
   @override
   void initState() {
     super.initState();
+    _loadProducts();
+  }
+
+  void _loadProducts() {
     _productsFuture = _productService.getLatestProducts();
+  }
+
+  Future<void> refresh() async {
+    final future = _productService.getLatestProducts();
+
+    setState(() {
+      _productsFuture = future;
+    });
+
+    await future;
   }
 
   @override
@@ -53,11 +68,19 @@ class _ProductSectionState extends State<ProductSection> {
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 40),
               child: Center(
-                child: Text(
-                  'Gagal memuat produk',
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.danger,
-                  ),
+                child: Column(
+                  children: [
+                    Text(
+                      'Gagal memuat produk',
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.danger,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: refresh,
+                      child: const Text('Coba Lagi'),
+                    ),
+                  ],
                 ),
               ),
             );
