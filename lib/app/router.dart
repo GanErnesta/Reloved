@@ -15,6 +15,8 @@ import '../features/auth/screens/reset_password_screen.dart';
 import '../features/profile/screens/profile_screen.dart';
 import '../features/auth/screens/verification_success_screen.dart';
 import '../features/profile/screens/profile_recovery_screen.dart';
+import '../features/profile/screens/settings_screen.dart';
+import '../features/profile/screens/edit_profile_screen.dart';
 
 final router = GoRouter(
   initialLocation: '/',
@@ -97,6 +99,16 @@ final router = GoRouter(
     GoRoute(
       path: '/profile-recovery',
       builder: (context, state) => const ProfileRecoveryScreen(),
+    ),
+    GoRoute(
+      path: '/settings',
+      builder: (context, state) => const SettingsScreen(),
+    ),
+    GoRoute(
+      path: '/edit-profile',
+      builder: (context, state) {
+        return EditProfileScreen(profile: state.extra as Map<String, dynamic>);
+      },
     ),
   ],
 );

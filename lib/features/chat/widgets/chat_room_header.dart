@@ -63,6 +63,7 @@ class ChatRoomHeader extends StatelessWidget {
                       size: 20,
                     ),
             ),
+            
             const SizedBox(width: 14),
             Expanded(
               child: Text(

@@ -16,38 +16,52 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _animationController;
-  late final Animation<double> _fadeAnimation;
-  late final Animation<Offset> _slideAnimation;
+    with TickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  // 1. Animasi lingkaran merah pertama dari putih ke merah
+  late final Animation<double> _redCircleAnimation;
+  // 2. Animasi lingkaran putih kedua dari merah ke putih
+  late final Animation<double> _whiteCircleAnimation;
+  // 3. Animasi kemunculan logo dan teks "Reloved"
+  late final Animation<double> _contentFadeAnimation;
+
   Timer? _timer;
 
   @override
   void initState() {
     super.initState();
 
-    _animationController = AnimationController(
+    _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2000),
     );
 
-    _fadeAnimation = CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeIn,
-    );
-
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.25),
-      end: Offset.zero,
-    ).animate(
+    // Tahap 1: Lingkaran merah membesar (0.0 - 0.35)
+    _redCircleAnimation = Tween<double>(begin: 0.0, end: 40.0).animate(
       CurvedAnimation(
-        parent: _animationController,
-        curve: Curves.easeOut,
+        parent: _controller,
+        curve: const Interval(0.0, 0.35, curve: Curves.easeInOutCubic),
       ),
     );
 
-    _animationController.forward();
+    // Tahap 2: Lingkaran putih membesar di atas background merah (0.35 - 0.75)
+    _whiteCircleAnimation = Tween<double>(begin: 0.0, end: 40.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.35, 0.75, curve: Curves.easeInOutCubic),
+      ),
+    );
 
+    // Tahap 3: Logo dan teks muncul bersamaan dengan membesarnya lingkaran putih (0.5 - 0.8)
+    _contentFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.5, 0.8, curve: Curves.easeIn),
+      ),
+    );
+
+    _controller.forward();
     _timer = Timer(const Duration(seconds: 4), _checkSession);
   }
 
@@ -66,62 +80,98 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void dispose() {
     _timer?.cancel();
-    _animationController.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
-      body: Center(
-        child: FadeTransition(
-          opacity: _fadeAnimation,
-          child: SlideTransition(
-            position: _slideAnimation,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 96,
-                  height: 96,
-                  decoration: BoxDecoration(
+      // Background awal putih bersih
+      backgroundColor: Colors.white,
+      body: Stack(
+        alignment: Alignment.center,
+        children: [
+          // 1. Lingkaran Merah yang membesar menutupi background putih
+          AnimatedBuilder(
+            animation: _redCircleAnimation,
+            builder: (context, child) {
+              return Transform.scale(
+                scale: _redCircleAnimation.value,
+                child: Container(
+                  width: 50,
+                  height: 50,
+                  decoration: const BoxDecoration(
                     color: AppColors.primary,
-                    borderRadius: BorderRadius.circular(28),
+                    shape: BoxShape.circle,
                   ),
-                  child: const Icon(
-                    Icons.shopping_bag_outlined,
+                ),
+              );
+            },
+          ),
+
+          // 2. Lingkaran Putih kedua yang membesar menutupi background merah
+          AnimatedBuilder(
+            animation: _whiteCircleAnimation,
+            builder: (context, child) {
+              return Transform.scale(
+                scale: _whiteCircleAnimation.value,
+                child: Container(
+                  width: 50,
+                  height: 50,
+                  decoration: const BoxDecoration(
                     color: Colors.white,
-                    size: 48,
+                    shape: BoxShape.circle,
                   ),
                 ),
-                const SizedBox(height: AppSpacing.lg),
-                Text(
-                  'Reloved',
-                  style: AppTextStyles.heading.copyWith(
-                    fontSize: 32,
-                    color: AppColors.primary,
+              );
+            },
+          ),
+
+          // 3. Logo (Gambar) & Teks "Reloved" yang muncul di tengah
+          FadeTransition(
+            opacity: _contentFadeAnimation,
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 100,
+                    height: 100,
+                    child: Image.asset(
+                      'assets/images/LogoReloved.png', // Ganti dengan path aset gambar kamu yang sesuai
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        // Fallback jika path gambar belum ada/salah agar tidak error
+                        return const Icon(
+                          Icons.shopping_bag_outlined,
+                          color: Colors.white,
+                          size: 48,
+                        );
+                      },
+                    ),
                   ),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  'Campus Marketplace',
-                  style: AppTextStyles.caption.copyWith(
-                    fontSize: 14,
+                  const SizedBox(height: AppSpacing.lg),
+                  Text(
+                    'Reloved',
+                    style: AppTextStyles.heading.copyWith(
+                      fontSize: 32,
+                      color: AppColors.primary,
+                    ),
                   ),
-                ),
-                const SizedBox(height: AppSpacing.xl),
-                const SizedBox(
-                  width: 28,
-                  height: 28,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 3,
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    'Campus Marketplace',
+                    style: AppTextStyles.caption.copyWith(
+                      fontSize: 14,
+                      color: Colors.grey,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

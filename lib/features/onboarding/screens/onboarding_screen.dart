@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -24,15 +25,23 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     super.initState();
 
     _controller.addListener(() {
+      if (!mounted) return;
+
       setState(() {
         currentPage = _controller.page ?? 0;
       });
     });
   }
 
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
   void nextPage() {
     if (currentPage.round() == 2) {
-      context.go('/register');
+      context.go('/login');
     } else {
       _controller.nextPage(
         duration: const Duration(milliseconds: 350),
@@ -41,13 +50,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }
   }
 
+  void skipOnboarding() {
+    context.go('/login');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Stack(
         children: [
-
-          /// PAGEVIEW
           PageView(
             controller: _controller,
             children: const [
@@ -57,26 +68,23 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ],
           ),
 
-          /// SKIP
-          Positioned(
-            left: 28,
-            bottom: 32,
-            child: GestureDetector(
-              onTap: (){
-                context.go('/register');
-              },
-              child: const Text(
-                "Skip",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w500,
+          if (currentPage.round() < 2)
+            Positioned(
+              left: 28,
+              bottom: 32,
+              child: GestureDetector(
+                onTap: skipOnboarding,
+                child: const Text(
+                  'Skip',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ),
-          ),
 
-          /// INDICATOR
           Positioned(
             left: 28,
             bottom: 68,
@@ -85,7 +93,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ),
           ),
 
-          /// NEXT BUTTON
           Positioned(
             right: 24,
             bottom: 26,

@@ -13,6 +13,7 @@ import '../widgets/safe_meeting_point.dart';
 class ChatRoomScreen extends StatefulWidget {
   final String conversationId;
   final String sellerName;
+  final String? sellerAvatar; // 1. Tambahkan parameter avatar penjual
   final String productName;
   final String productPrice;
   final String productImage;
@@ -21,6 +22,7 @@ class ChatRoomScreen extends StatefulWidget {
     super.key,
     required this.conversationId,
     required this.sellerName,
+    this.sellerAvatar, // 2. Daftarkan di constructor
     required this.productName,
     required this.productPrice,
     required this.productImage,

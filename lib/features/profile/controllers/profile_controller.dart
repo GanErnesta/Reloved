@@ -1,5 +1,6 @@
 import '../../auth/services/auth_service.dart';
 import '../repository/profile_repository.dart';
+import 'dart:typed_data';
 
 class ProfileController {
   ProfileController();
@@ -49,6 +50,22 @@ class ProfileController {
       campusName: campusName.trim(),
       fakultas: fakultas.trim(),
       programStudi: programStudi.trim(),
+    );
+  }
+
+  Future<void> updateProfile({
+    required String nama,
+    Uint8List? imageBytes,
+    String? imageExtension,
+  }) async {
+    if (nama.trim().isEmpty) {
+      throw Exception('Nama tidak boleh kosong.');
+    }
+
+    await _repository.updateProfile(
+      nama: nama,
+      imageBytes: imageBytes,
+      imageExtension: imageExtension,
     );
   }
 }
