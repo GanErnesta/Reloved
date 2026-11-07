@@ -3,10 +3,7 @@ import 'package:flutter/material.dart';
 class NextButton extends StatefulWidget {
   final VoidCallback onTap;
 
-  const NextButton({
-    super.key,
-    required this.onTap,
-  });
+  const NextButton({super.key, required this.onTap});
 
   @override
   State<NextButton> createState() => _NextButtonState();
@@ -79,7 +76,7 @@ class _NextButtonState extends State<NextButton>
                 shape: BoxShape.circle,
               ),
               child: const Icon(
-                Icons.arrow_forward_rounded,
+                Icons.arrow_right_alt_outlined,
                 color: Color(0xffA72B43),
                 size: 28,
               ),

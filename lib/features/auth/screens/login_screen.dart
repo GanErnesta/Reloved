@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -46,9 +45,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            e.toString().replaceFirst('Exception: ', ''),
-          ),
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
           backgroundColor: AppColors.danger,
         ),
       );
@@ -66,17 +63,11 @@ class _LoginScreenState extends State<LoginScreen> {
   }) {
     return InputDecoration(
       hintText: hint,
-      prefixIcon: Icon(
-        icon,
-        color: AppColors.textSecondary,
-      ),
+      prefixIcon: Icon(icon, color: AppColors.textSecondary),
       suffixIcon: suffixIcon,
       filled: true,
       fillColor: Colors.white,
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 16,
-        vertical: 17,
-      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide(color: Colors.grey.shade200),
@@ -87,10 +78,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(
-          color: AppColors.primary,
-          width: 1.5,
-        ),
+        borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
       ),
     );
   }
@@ -112,16 +100,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Column(
                       children: [
                         Container(
-                          width: 76,
-                          height: 76,
-                          decoration: BoxDecoration(
-                            color: AppColors.primary,
-                            borderRadius: BorderRadius.circular(22),
-                          ),
-                          child: const Icon(
-                            Icons.recycling_rounded,
-                            color: Colors.white,
-                            size: 42,
+                          width: 100,
+                          height: 100,
+                          child: Image.asset(
+                            'assets/images/LogoReloved.png',
+                            fit: BoxFit.contain,
                           ),
                         ),
                         const SizedBox(height: 18),
@@ -241,8 +224,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
-                        disabledBackgroundColor:
-                            AppColors.primary.withValues(alpha: 0.5),
+                        disabledBackgroundColor: AppColors.primary.withValues(
+                          alpha: 0.5,
+                        ),
                         elevation: 0,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -273,9 +257,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       children: [
                         const Text(
                           'Belum punya akun? ',
-                          style: TextStyle(
-                            color: AppColors.textSecondary,
-                          ),
+                          style: TextStyle(color: AppColors.textSecondary),
                         ),
                         GestureDetector(
                           onTap: () => context.go('/register'),

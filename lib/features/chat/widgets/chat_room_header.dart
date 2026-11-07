@@ -6,12 +6,14 @@ import '../../../core/constants/app_text_styles.dart';
 
 class ChatRoomHeader extends StatelessWidget {
   final String name;
+  final String? avatarUrl; // 1. Tambahkan parameter avatarUrl
   final VoidCallback onBack;
   final VoidCallback onMore;
 
   const ChatRoomHeader({
     super.key,
     required this.name,
+    this.avatarUrl, // 2. Daftarkan di constructor
     required this.onBack,
     required this.onMore,
   });
@@ -45,10 +47,23 @@ class ChatRoomHeader extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 18),
-            const CircleAvatar(
+            
+            // 3. Tampilkan foto profil menggunakan backgroundImage
+            CircleAvatar(
               radius: 16,
-              backgroundColor: Color(0xFFF1E4E7),
+              backgroundColor: const Color(0xFFF1E4E7),
+              backgroundImage: (avatarUrl != null && avatarUrl!.isNotEmpty)
+                  ? NetworkImage(avatarUrl!)
+                  : null,
+              child: (avatarUrl == null || avatarUrl!.isEmpty)
+                  ? const Icon(
+                      Icons.person,
+                      size: 18,
+                      color: AppColors.primary,
+                    )
+                  : null,
             ),
+            
             const SizedBox(width: 14),
             Text(
               name,
