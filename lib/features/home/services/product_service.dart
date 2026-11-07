@@ -463,4 +463,31 @@ class ProductService {
 
     return _mapProductsWithProfiles(response);
   }
+  
+  // ============================================================
+  // GET PRODUCTS BY SELLER ID
+  // ============================================================
+
+  Future<List<Product>> getProductsBySellerId(
+    String sellerId,
+  ) async {
+    if (sellerId.isEmpty) {
+      throw Exception('ID penjual tidak valid.');
+    }
+
+    final response = await _supabase
+        .from('products')
+        .select('''
+          *,
+          categories (
+            id,
+            name
+          )
+        ''')
+        .eq('seller_id', sellerId)
+        .order('created_at', ascending: false);
+
+    return _mapProductsWithProfiles(response);
+  }
+
 }

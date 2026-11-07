@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
@@ -44,10 +45,11 @@ class SafeMeetingPoint extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              const Icon(
-                Icons.location_on,
-                color: Colors.white,
-                size: 22,
+              Image.asset(
+                'assets/icons/icon_safepoint.png',
+                width: 22,
+                height: 22,
+                fit: BoxFit.contain,
               ),
             ],
           ),

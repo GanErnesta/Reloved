@@ -1,8 +1,10 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../core/config/supabase_config.dart';
 import '../models/chat_model.dart';
 import '../models/message_model.dart';
+import '../models/safe_meeting_point_model.dart';
 
 class ChatService {
   final SupabaseClient _client = SupabaseConfig.client;
@@ -158,6 +160,8 @@ class ChatService {
           'conversation_id': conversationId,
           'sender_id': _currentUserId,
           'message': text,
+          'message_type': 'text',
+          'metadata': {},
         })
         .select()
         .single();
@@ -215,5 +219,94 @@ class ChatService {
         .maybeSingle();
 
     return profile == null ? null : Map<String, dynamic>.from(profile);
+  }
+
+  Future<List<SafeMeetingPointModel>> fetchSafeMeetingPoints() async {
+    final response = await _client
+        .from('safe_meeting_points')
+        .select('id, name, full_address, image_url, latitude, longitude')
+        .eq('is_active', true)
+        .order('name');
+
+    return response
+        .map(
+          (item) =>
+              SafeMeetingPointModel.fromJson(Map<String, dynamic>.from(item)),
+        )
+        .toList();
+  }
+
+  Future<MessageModel> sendSafeMeetingPoint({
+    required String conversationId,
+    required List<SafeMeetingPointModel> locations,
+  }) async {
+    if (locations.isEmpty) {
+      throw Exception('Pilih minimal satu titik temu.');
+    }
+
+    final metadata = {
+      'locations': locations.map((location) => location.toJson()).toList(),
+    };
+
+    final result = await _client
+        .from('messages')
+        .insert({
+          'conversation_id': conversationId,
+          'sender_id': _currentUserId,
+          'message': 'Titik temu telah ditetapkan.',
+          'message_type': 'safe_meeting_point',
+          'metadata': metadata,
+        })
+        .select()
+        .single();
+
+    return MessageModel.fromJson(result);
+  }
+
+  Future<MessageModel> sendImageMessage({
+    required String conversationId,
+    required XFile image,
+    String? message,
+  }) async {
+    final userId = _currentUserId;
+
+    final extension = image.name.split('.').last.toLowerCase();
+    final fileName = '${DateTime.now().microsecondsSinceEpoch}.$extension';
+
+    final filePath = '$userId/$conversationId/$fileName';
+    final bytes = await image.readAsBytes();
+
+    final contentType = switch (extension) {
+      'png' => 'image/png',
+      'webp' => 'image/webp',
+      'jpg' || 'jpeg' => 'image/jpeg',
+      _ => 'application/octet-stream',
+    };
+
+    await _client.storage
+        .from('chat-images')
+        .uploadBinary(
+          filePath,
+          bytes,
+          fileOptions: FileOptions(contentType: contentType, upsert: false),
+        );
+
+    final imageUrl = _client.storage.from('chat-images').getPublicUrl(filePath);
+
+    final caption = message?.trim() ?? '';
+
+    final result = await _client
+        .from('messages')
+        .insert({
+          'conversation_id': conversationId,
+          'sender_id': userId,
+          'message': caption.isEmpty ? 'Foto lokasi' : caption,
+          'message_type': 'image',
+          'metadata': {'image_url': imageUrl, 'file_name': fileName},
+        })
+        .select()
+        .single();
+
+    return MessageModel.fromJson(result);
   }
 }
