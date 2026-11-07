@@ -15,10 +15,6 @@ class ProductService {
   static const String _bucketName = 'product-images';
   static const int _maxImages = 5;
 
-  // ============================================================
-  // ATTACH PUBLIC SELLER PROFILES
-  // ============================================================
-
   Future<List<Product>> _mapProductsWithProfiles(
     List<dynamic> rows,
   ) async {
@@ -47,22 +43,16 @@ class ProductService {
 
     for (final profile in profileResponse) {
       final data = Map<String, dynamic>.from(profile);
-
       profileMap[data['id'].toString()] = data;
     }
 
     for (final product in products) {
       final sellerId = product['seller_id']?.toString() ?? '';
-
       product['profiles'] = profileMap[sellerId] ?? {};
     }
 
     return products.map(Product.fromMap).toList();
   }
-
-  // ============================================================
-  // UPLOAD PRODUCT IMAGES
-  // ============================================================
 
   Future<List<String>> uploadProductImages({
     required List<XFile> images,
@@ -111,9 +101,7 @@ class ProductService {
         }
 
         if (bytes.length > 5 * 1024 * 1024) {
-          throw Exception(
-            'Ukuran foto ${image.name} melebihi 5 MB.',
-          );
+          throw Exception('Ukuran foto ${image.name} melebihi 5 MB.');
         }
 
         final fileName =
@@ -143,19 +131,13 @@ class ProductService {
     } catch (e) {
       if (uploadedPaths.isNotEmpty) {
         try {
-          await _supabase.storage
-              .from(_bucketName)
-              .remove(uploadedPaths);
+          await _supabase.storage.from(_bucketName).remove(uploadedPaths);
         } catch (_) {}
       }
 
       rethrow;
     }
   }
-
-  // ============================================================
-  // CREATE PRODUCT
-  // ============================================================
 
   Future<String> createProduct({
     required String categoryId,
@@ -221,16 +203,12 @@ class ProductService {
     List<String> uploadedPaths = [];
 
     try {
-      // 1. Upload foto produk.
-      final imageUrls = await uploadProductImages(
-        images: images,
-      );
+      final imageUrls = await uploadProductImages(images: images);
 
       uploadedPaths = imageUrls.map((url) {
         return url.split('/$_bucketName/').last;
       }).toList();
 
-      // 2. Siapkan data produk.
       final productData = <String, dynamic>{
         'seller_id': user.id,
         'category_id': categoryId,
@@ -247,7 +225,6 @@ class ProductService {
         'location_name': locationName,
       };
 
-      // 3. Tambahkan informasi sewa.
       if (dbTransactionType == 'rent') {
         productData.addAll({
           'rental_price': rentalPrice,
@@ -256,7 +233,6 @@ class ProductService {
         });
       }
 
-      // 4. Simpan produk.
       final response = await _supabase
           .from('products')
           .insert(productData)
@@ -265,22 +241,15 @@ class ProductService {
 
       return response['id'].toString();
     } catch (e) {
-      // 5. Rollback foto jika penyimpanan gagal.
       if (uploadedPaths.isNotEmpty) {
         try {
-          await _supabase.storage
-              .from(_bucketName)
-              .remove(uploadedPaths);
+          await _supabase.storage.from(_bucketName).remove(uploadedPaths);
         } catch (_) {}
       }
 
       rethrow;
     }
   }
-
-  // ============================================================
-  // GET LATEST PRODUCTS
-  // ============================================================
 
   Future<List<Product>> getLatestProducts() async {
     final response = await _supabase
@@ -298,10 +267,6 @@ class ProductService {
 
     return _mapProductsWithProfiles(response);
   }
-
-  // ============================================================
-  // GET MABA PRODUCTS
-  // ============================================================
 
   Future<List<Product>> getMabaProducts() async {
     final response = await _supabase
@@ -345,10 +310,6 @@ class ProductService {
     }).toList();
   }
 
-  // ============================================================
-  // SEARCH PRODUCTS
-  // ============================================================
-
   Future<List<Product>> searchProducts(String keyword) async {
     final query = keyword.trim();
 
@@ -369,7 +330,6 @@ class ProductService {
           .eq('status', 'available')
           .or('name.ilike.$searchPattern,description.ilike.$searchPattern')
           .order('created_at', ascending: false),
-
       _supabase
           .from('categories')
           .select('id')
@@ -416,10 +376,6 @@ class ProductService {
     return products;
   }
 
-  // ============================================================
-  // GET PRODUCT BY ID
-  // ============================================================
-
   Future<Product> getProductById(String id) async {
     final response = await _supabase
         .from('products')
@@ -438,10 +394,6 @@ class ProductService {
     return products.first;
   }
 
-  // ============================================================
-  // GET MY PRODUCTS
-  // ============================================================
-
   Future<List<Product>> getMyProducts() async {
     final user = _supabase.auth.currentUser;
 
@@ -459,6 +411,37 @@ class ProductService {
           )
         ''')
         .eq('seller_id', user.id)
+        .order('created_at', ascending: false);
+
+    return _mapProductsWithProfiles(response);
+  }
+
+  Future<List<Product>> getProductsByCategory(
+    String categoryName,
+  ) async {
+    final normalizedName = categoryName.replaceAll('\n', ' ').trim();
+
+    final categoryResponse = await _supabase
+        .from('categories')
+        .select('id')
+        .ilike('name', normalizedName)
+        .maybeSingle();
+
+    if (categoryResponse == null) {
+      return [];
+    }
+
+    final response = await _supabase
+        .from('products')
+        .select('''
+          *,
+          categories (
+            id,
+            name
+          )
+        ''')
+        .eq('status', 'available')
+        .eq('category_id', categoryResponse['id'])
         .order('created_at', ascending: false);
 
     return _mapProductsWithProfiles(response);
