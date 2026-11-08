@@ -27,6 +27,6 @@ class Env {
     if (key == null || key.isEmpty) {
       throw Exception('MIDTRANS_SERVER_KEY tidak ditemukan pada file .env');
     }
-    return key;
+    return key.trim();
   }
 }

@@ -168,11 +168,11 @@ class CartItemModel {
     ];
     if (start.month == end.month && start.year == end.year) {
       if (start.day == end.day) {
-        return '${start.day} ${months[start.month - 1]} ${start.year}';
+        return '${start.day} ${months[start.month - 1]}${start.year}';
       }
-      return '${start.day} - ${end.day} ${months[start.month - 1]} ${start.year}';
+      return '${start.day} -${end.day} ${months[start.month - 1]}${start.year}';
     }
-    return '${start.day} ${months[start.month - 1]} - ${end.day} ${months[end.month - 1]} ${end.year}';
+    return '${start.day} ${months[start.month - 1]} -${end.day} ${months[end.month - 1]}${end.year}';
   }
 }
 

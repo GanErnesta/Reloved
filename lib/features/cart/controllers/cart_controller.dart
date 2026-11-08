@@ -23,6 +23,9 @@ class CartController extends ChangeNotifier {
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
+  String? _lastErrorMessage;
+  String? get lastErrorMessage => _lastErrorMessage;
+
   List<CartItemModel> _items = [];
   List<SafeMeetingPointModel> _meetingPoints =
       SafeMeetingPointModel.campusPoints;
@@ -32,7 +35,6 @@ class CartController extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
-    // 1. Ambil daftar titik temu (Safe Meeting Points) secara independen
     try {
       final dbPoints = await _repository.fetchSafeMeetingPoints();
       if (dbPoints.isNotEmpty) {
@@ -42,7 +44,6 @@ class CartController extends ChangeNotifier {
       debugPrint('Info fetchSafeMeetingPoints: $e');
     }
 
-    // 2. Cek sesi pembayaran pending secara independen
     try {
       final pendingMap = await _repository.fetchActivePaymentSession();
       if (pendingMap != null) {
@@ -71,6 +72,7 @@ class CartController extends ChangeNotifier {
             discount: ((pendingMap['discount'] ?? 0) as num).toInt(),
             expiresAt: expiresAt,
             midtransOrderId: pendingMap['midtrans_order_id']?.toString(),
+            qrisString: pendingMap['qris_string']?.toString(),
           );
         }
       }
@@ -78,7 +80,6 @@ class CartController extends ChangeNotifier {
       debugPrint('Info fetchActivePaymentSession: $e');
     }
 
-    // 3. Ambil daftar barang di keranjang (Selalu dijalankan)
     try {
       _items = await _repository.fetchCartItems();
     } catch (e) {
@@ -207,6 +208,7 @@ class CartController extends ChangeNotifier {
     int discount = 0,
     Duration timeoutDuration = const Duration(minutes: 30),
   }) {
+    _lastErrorMessage = null;
     final subtotal =
     itemsToCheckout.fold(0, (sum, item) => sum + item.subtotalPrice);
 
@@ -258,14 +260,15 @@ class CartController extends ChangeNotifier {
         }
       }
 
-      final realSessionId = await _repository.startCheckoutSession(
+      final Map<String, dynamic> result =
+      await _repository.startCheckoutSession(
         safeMeetingPointId: smpId,
         paymentMethod: paymentMethod,
         cartItemIds: itemsToCheckout.map((e) => e.id).toList(),
       );
 
       _activePaymentSession = PendingPaymentSession(
-        sessionId: realSessionId,
+        sessionId: result['sessionId']?.toString() ?? 'PENDING-SYNC',
         checkedOutItems: itemsToCheckout,
         safeMeetingPoint: safeMeetingPoint,
         pickupAddress: itemsToCheckout.first.sellerPickupAddress,
@@ -275,10 +278,14 @@ class CartController extends ChangeNotifier {
         shippingFee: shippingFee,
         discount: discount,
         expiresAt: DateTime.now().add(timeoutDuration),
+        midtransOrderId: result['midtransOrderId']?.toString(),
+        qrisString: result['redirectUrl']?.toString(),
       );
       notifyListeners();
     } catch (e) {
+      _lastErrorMessage = e.toString().replaceFirst('Exception: ', '');
       debugPrint('Error _syncStartSessionToSupabase: $e');
+      notifyListeners();
     }
   }
 
@@ -302,15 +309,21 @@ class CartController extends ChangeNotifier {
     if (_activePaymentSession == null) return false;
     final sessionId = _activePaymentSession!.sessionId;
 
+    if (sessionId == 'PENDING-SYNC') {
+      _lastErrorMessage =
+      'Sesi pembayaran masih disiapkan. Tunggu beberapa detik lagi.';
+      return false;
+    }
+
     try {
-      if (sessionId != 'PENDING-SYNC') {
-        await _repository.confirmPaymentSession(sessionId);
-      }
+      _lastErrorMessage = null;
+      await _repository.confirmPaymentSession(sessionId);
       _activePaymentSession = null;
       await loadCartFromSupabase();
       await OrderController.instance.loadBuyerOrders();
       return true;
     } catch (e) {
+      _lastErrorMessage = e.toString().replaceFirst('Exception: ', '');
       debugPrint('Error confirmPaymentSuccess: $e');
       return false;
     }

@@ -1,4 +1,3 @@
-  
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -7,8 +6,10 @@ import '../../../core/constants/app_radius.dart';
 import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 
-import '../../transaction/services/cart_service.dart';
-import '../../transaction/widgets/transaction_confirmation_modal.dart';
+import '../../cart/controllers/cart_controller.dart';
+import '../../cart/screens/checkout_screen.dart';
+import '../../cart/services/cart_service.dart';
+import '../../cart/widgets/transaction_confirmation_modal.dart';
 
 import '../models/product.dart';
 import '../services/product_service.dart';
@@ -45,6 +46,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
 
   bool _isAddingToCart = false;
   bool _isLoadingProduct = false;
+  bool _isBuyingNow = false;
 
   Product get product => _product;
 
@@ -95,10 +97,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     if (!sourceObject.hasSize || !targetObject.hasSize) return;
 
     final sourcePosition =
-        sourceObject.localToGlobal(Offset.zero);
+    sourceObject.localToGlobal(Offset.zero);
 
     final targetPosition =
-        targetObject.localToGlobal(Offset.zero);
+    targetObject.localToGlobal(Offset.zero);
 
     final startRect = sourcePosition & sourceObject.size;
 
@@ -118,12 +120,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     entry = OverlayEntry(
       builder: (overlayContext) {
         final progress =
-            Curves.easeInOutCubic.transform(
+        Curves.easeInOutCubic.transform(
           _cartAnimationController.value,
         );
 
         final currentRect =
-            Rect.lerp(startRect, endRect, progress)!;
+        Rect.lerp(startRect, endRect, progress)!;
 
         final opacity = (1 - (progress * 0.15))
             .clamp(0.0, 1.0)
@@ -181,7 +183,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
   Future<void> _refreshProduct() async {
     try {
       final latestProduct =
-          await _productService.getProductById(
+      await _productService.getProductById(
         widget.product.id,
       );
 
@@ -196,16 +198,16 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
   }
 
   Future<void> _saveCartSelection(
-    Map<String, dynamic> data,
-  ) async {
+      Map<String, dynamic> data,
+      ) async {
     final transactionType =
-        data['transactionType'] as String;
+    data['transactionType'] as String;
 
     final quantity = data['quantity'] as int;
 
     try {
       final latestProduct =
-          await _productService.getProductById(product.id);
+      await _productService.getProductById(product.id);
 
       if (!mounted) return;
 
@@ -256,6 +258,95 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     }
   }
 
+  /// Dipanggil saat user menekan "Konfirmasi" di modal setelah menekan "Beli".
+  /// Langsung membawa user ke CheckoutScreen dengan qty (dan durasi sewa)
+  /// yang dipilih, tanpa melewati layar Keranjang.
+  Future<void> _buyNow(Map<String, dynamic> data) async {
+    if (_isBuyingNow) return;
+
+    // Hanya boleh ada satu sesi pembayaran yang menunggu.
+    if (CartController.instance.hasPendingPayment) {
+      _showMessage(
+        'Selesaikan atau batalkan pembayaran sebelumnya terlebih dahulu',
+      );
+      return;
+    }
+
+    final transactionType = data['transactionType'] as String;
+    final quantity = data['quantity'] as int;
+
+    setState(() {
+      _isBuyingNow = true;
+    });
+
+    try {
+      final latestProduct =
+      await _productService.getProductById(product.id);
+
+      if (!mounted) return;
+
+      setState(() {
+        _product = latestProduct;
+      });
+
+      if (latestProduct.status != 'available') {
+        _showMessage('Produk sudah tidak tersedia');
+        return;
+      }
+
+      if (quantity < latestProduct.minPurchase ||
+          quantity > latestProduct.stock) {
+        _showMessage('Jumlah barang tidak sesuai dengan stok');
+        return;
+      }
+
+      // Buat baris keranjang khusus untuk pembelian ini
+      // (dibutuhkan oleh fungsi checkout di database).
+      final cartItem = await _cartService.createBuyNowItem(
+        latestProduct.id,
+        transactionType: transactionType,
+        quantity: quantity,
+        rentalDuration: data['duration'] as int?,
+        rentalPeriod: data['rentalPeriod'] as String?,
+      );
+
+      if (!mounted) {
+        await _cartService.deleteCartItem(cartItem.id);
+        return;
+      }
+
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => CheckoutScreen(selectedItems: [cartItem]),
+        ),
+      );
+
+      // Kembali dari checkout. Jika pembayaran TIDAK dimulai (user menekan
+      // back), hapus baris sementara agar tidak tertinggal di keranjang.
+      // Jika pembayaran dimulai, baris itu sedang dipakai oleh sesi
+      // pembayaran, jadi jangan disentuh.
+      if (!CartController.instance.hasPendingPayment) {
+        try {
+          await _cartService.deleteCartItem(cartItem.id);
+        } catch (e) {
+          debugPrint('ERROR CLEANUP BUY NOW: $e');
+        }
+      }
+    } catch (e) {
+      debugPrint('ERROR BUY NOW: $e');
+
+      if (mounted) {
+        _showMessage('Gagal memproses pembelian, coba lagi');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isBuyingNow = false;
+        });
+      }
+    }
+  }
+
   Future<void> _addToCart() async {
     final user =
         Supabase.instance.client.auth.currentUser;
@@ -281,7 +372,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
 
     try {
       final latestProduct =
-          await _productService.getProductById(product.id);
+      await _productService.getProductById(product.id);
 
       if (!mounted) return;
 
@@ -352,7 +443,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
 
     try {
       final conversation =
-          await _chatService.createOrGetConversation(
+      await _chatService.createOrGetConversation(
         sellerId: product.sellerId,
         productId: product.id,
       );
@@ -414,7 +505,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
       return;
     }
 
-    if (_isLoadingProduct) return;
+    if (_isLoadingProduct || _isBuyingNow) return;
 
     setState(() {
       _isLoadingProduct = true;
@@ -422,7 +513,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
 
     try {
       final latestProduct =
-          await _productService.getProductById(
+      await _productService.getProductById(
         widget.product.id,
       );
 
@@ -462,15 +553,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                 ? TransactionMode.rent
                 : TransactionMode.sale,
             onConfirm: (data) {
-              final mode = data['transactionType'];
-              final quantity = data['quantity'];
-              final totalPrice = data['totalPrice'];
-
-              _showMessage(
-                mode == 'rent'
-                    ? 'Konfirmasi sewa: $quantity barang, total ${formatPrice((totalPrice as num).toDouble())}'
-                    : 'Konfirmasi pembelian: $quantity barang, total ${formatPrice((totalPrice as num).toDouble())}',
-              );
+              // Langsung menuju checkout dengan qty yang dipilih.
+              _buyNow(data);
             },
           );
         },
@@ -525,6 +609,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
   }
 
   Widget _buildBottomActionBar() {
+    final bool isBuyBusy = _isLoadingProduct || _isBuyingNow;
+
     return SafeArea(
       top: false,
       child: Container(
@@ -554,7 +640,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                 height: 42,
                 child: OutlinedButton(
                   onPressed:
-                      _isOpeningChat ? null : _openChat,
+                  _isOpeningChat ? null : _openChat,
                   style: OutlinedButton.styleFrom(
                     padding: EdgeInsets.zero,
                     backgroundColor: const Color(0xFFF4E5E7),
@@ -594,20 +680,20 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                   ),
                   child: _isAddingToCart
                       ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                          ),
-                        )
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                    ),
+                  )
                       : Text(
-                          '+ Keranjang',
-                          style: AppTextStyles.bodyMedium.copyWith(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12,
-                          ),
-                        ),
+                    '+ Keranjang',
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -618,35 +704,35 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
               child: SizedBox(
                 height: 42,
                 child: ElevatedButton(
-                  onPressed: _isLoadingProduct || isOwnProduct
+                  onPressed: isBuyBusy || isOwnProduct
                       ? null
                       : _showTransactionModal,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     disabledBackgroundColor:
-                        AppColors.primary.withValues(alpha: 0.6),
+                    AppColors.primary.withValues(alpha: 0.6),
                     elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  child: _isLoadingProduct
+                  child: isBuyBusy
                       ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
                       : Text(
-                          'Beli',
-                          style: AppTextStyles.bodyMedium.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12,
-                          ),
-                        ),
+                    'Beli',
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -909,7 +995,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                 height: 32,
                 child: OutlinedButton(
                   onPressed:
-                      _isOpeningChat ? null : _openChat,
+                  _isOpeningChat ? null : _openChat,
                   style: OutlinedButton.styleFrom(
                     padding: EdgeInsets.zero,
                     side: const BorderSide(
@@ -937,12 +1023,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     );
   }
 }
+
 String formatPrice(double price) {
   final value = price.toInt().toString();
 
   final formatted = value.replaceAllMapped(
     RegExp(r'\B(?=(\d{3})+(?!\d))'),
-    (match) => '.',
+        (match) => '.',
   );
 
   return 'Rp $formatted';
