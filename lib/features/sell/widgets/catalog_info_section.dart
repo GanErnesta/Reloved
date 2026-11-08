@@ -1,14 +1,14 @@
 
 import 'package:flutter/material.dart';
+
 import '../../../core/constants/app_colors.dart';
 import '../../../core/config/supabase_config.dart';
 
-class CatalogInfoSection extends StatelessWidget {
+class CatalogInfoSection extends StatefulWidget {
   final TextEditingController nameController;
   final TextEditingController descriptionController;
   final String selectedCondition;
   final ValueChanged<String> onConditionChanged;
-
   final String? selectedCategoryId;
   final ValueChanged<String?>? onCategoryChanged;
 
@@ -22,13 +22,79 @@ class CatalogInfoSection extends StatelessWidget {
     this.onCategoryChanged,
   });
 
+  @override
+  State<CatalogInfoSection> createState() => _CatalogInfoSectionState();
+}
+
+class _CatalogInfoSectionState extends State<CatalogInfoSection> {
+  late Future<List<Map<String, dynamic>>> _categoriesFuture;
+
+  static const List<_CategoryItem> categories = [
+    _CategoryItem(
+      icon: Icons.menu_book_outlined,
+      title: 'Buku Kuliah',
+      categoryName: 'Buku',
+    ),
+    _CategoryItem(
+      icon: Icons.bed_outlined,
+      title: 'Barang Kost',
+      categoryName: 'Barang Kost',
+    ),
+    _CategoryItem(
+      icon: Icons.checkroom_outlined,
+      title: 'Fashion Kampus',
+      categoryName: 'Pakaian',
+    ),
+    _CategoryItem(
+      icon: Icons.science_outlined,
+      title: 'Alat Praktikum',
+      categoryName: 'Alat Praktikum',
+    ),
+    _CategoryItem(
+      icon: Icons.restaurant_outlined,
+      title: 'Bumbu Makanan',
+      categoryName: 'Bumbu Makanan',
+    ),
+    _CategoryItem(
+      icon: Icons.tv_outlined,
+      title: 'Alat Elektronik',
+      categoryName: 'Elektronik',
+    ),
+    _CategoryItem(
+      icon: Icons.face_retouching_natural_outlined,
+      title: 'Makeup & Skincare',
+      categoryName: 'Makeup & Skincare',
+    ),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _categoriesFuture = _getCategories();
+  }
+
   Future<List<Map<String, dynamic>>> _getCategories() async {
     final response = await SupabaseConfig.client
         .from('categories')
-        .select('id, name')
-        .order('name');
+        .select('id, name');
 
-    return List<Map<String, dynamic>>.from(response);
+    final allCategories = List<Map<String, dynamic>>.from(response);
+
+    final orderedCategories = <Map<String, dynamic>>[];
+
+    for (final item in categories) {
+      final matched = allCategories.where(
+        (category) =>
+            category['name'].toString().trim().toLowerCase() ==
+            item.categoryName.toLowerCase(),
+      );
+
+      if (matched.isNotEmpty) {
+        orderedCategories.add(matched.first);
+      }
+    }
+
+    return orderedCategories;
   }
 
   @override
@@ -56,14 +122,15 @@ class CatalogInfoSection extends StatelessWidget {
 
           _label('Nama Barang'),
           _field(
-            controller: nameController,
+            controller: widget.nameController,
             hint: 'Masukkan nama barang',
           ),
 
           const SizedBox(height: 16),
           _label('Kategori'),
+
           FutureBuilder<List<Map<String, dynamic>>>(
-            future: _getCategories(),
+            future: _categoriesFuture,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const LinearProgressIndicator();
@@ -79,9 +146,9 @@ class CatalogInfoSection extends StatelessWidget {
                 );
               }
 
-              final categories = snapshot.data ?? [];
+              final availableCategories = snapshot.data ?? [];
 
-              if (categories.isEmpty) {
+              if (availableCategories.isEmpty) {
                 return const Text(
                   'Belum ada kategori tersedia.',
                   style: TextStyle(
@@ -91,9 +158,41 @@ class CatalogInfoSection extends StatelessWidget {
                 );
               }
 
-              final validSelectedId = categories.any(
-                (category) => category['id'].toString() == selectedCategoryId,
-              ) ? selectedCategoryId : null;
+              final dropdownItems = availableCategories.map((category) {
+                final categoryName = category['name'].toString();
+
+                final categoryItem = categories.firstWhere(
+                  (item) =>
+                      item.categoryName.toLowerCase() ==
+                      categoryName.trim().toLowerCase(),
+                );
+
+                return DropdownMenuItem<String>(
+                  value: category['id'].toString(),
+                  child: Row(
+                    children: [
+                      Icon(
+                        categoryItem.icon,
+                        size: 21,
+                        color: AppColors.primary,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          categoryItem.title,
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList();
+
+              final validSelectedId = dropdownItems.any(
+                (item) => item.value == widget.selectedCategoryId,
+              )
+                  ? widget.selectedCategoryId
+                  : null;
 
               return DropdownButtonFormField<String>(
                 value: validSelectedId,
@@ -106,16 +205,8 @@ class CatalogInfoSection extends StatelessWidget {
                   ),
                 ),
                 decoration: _decoration(),
-                items: categories.map((category) {
-                  return DropdownMenuItem<String>(
-                    value: category['id'].toString(),
-                    child: Text(
-                      category['name'].toString(),
-                      style: const TextStyle(fontSize: 13),
-                    ),
-                  );
-                }).toList(),
-                onChanged: onCategoryChanged,
+                items: dropdownItems,
+                onChanged: widget.onCategoryChanged,
               );
             },
           ),
@@ -123,7 +214,7 @@ class CatalogInfoSection extends StatelessWidget {
           const SizedBox(height: 16),
           _label('Deskripsi Produk'),
           _field(
-            controller: descriptionController,
+            controller: widget.descriptionController,
             hint: 'Jelaskan kondisi dan detail produk',
             maxLines: 4,
           ),
@@ -200,11 +291,11 @@ class CatalogInfoSection extends StatelessWidget {
   }
 
   Widget _conditionOption(String value) {
-    final isSelected = selectedCondition == value;
+    final isSelected = widget.selectedCondition == value;
 
     return Expanded(
       child: GestureDetector(
-        onTap: () => onConditionChanged(value),
+        onTap: () => widget.onConditionChanged(value),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(vertical: 12),
@@ -229,4 +320,16 @@ class CatalogInfoSection extends StatelessWidget {
       ),
     );
   }
+}
+
+class _CategoryItem {
+  final IconData icon;
+  final String title;
+  final String categoryName;
+
+  const _CategoryItem({
+    required this.icon,
+    required this.title,
+    required this.categoryName,
+  });
 }
