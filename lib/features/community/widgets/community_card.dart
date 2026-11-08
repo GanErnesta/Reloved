@@ -43,8 +43,12 @@ class CommunityCard extends StatelessWidget {
             onTap: onTap,
             child: Stack(
               children: [
-                // Gambar background di sisi kanan dengan ShaderMask agar tepi kirinya memudar mulus
-                Positioned.fill(
+                // Gambar background di sisi kanan dengan ShaderMask
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: 230,
                   child: ShaderMask(
                     shaderCallback: (Rect bounds) {
                       return LinearGradient(
@@ -52,18 +56,17 @@ class CommunityCard extends StatelessWidget {
                         end: Alignment.centerRight,
                         colors: [
                           Colors.transparent,
-                          Colors.transparent, // Pastikan sisi kiri 100% transparan
+                          Colors.black.withValues(alpha: 0.15),
                           Colors.black.withValues(alpha: 0.65),
                           Colors.black,
                         ],
-                        stops: const [0.0, 0.35, 0.65, 1.0], // Rentang gradasi disesuaikan dengan lebar penuh
+                        stops: const [0.0, 0.25, 0.55, 0.85],
                       ).createShader(bounds);
                     },
                     blendMode: BlendMode.dstIn,
                     child: Image.asset(
                       community.backgroundAsset,
                       fit: BoxFit.cover,
-                      alignment: Alignment.centerRight, // Menjaga gambar tetap menempel di kanan
                       errorBuilder: (context, error, stackTrace) {
                         return Container(
                           decoration: const BoxDecoration(
@@ -88,7 +91,7 @@ class CommunityCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                // Lapisan gradasi tambahan agar area teks di kiri bersih sempurna
+                // Lapisan gradasi tambahan
                 Positioned.fill(
                   child: DecoratedBox(
                     decoration: BoxDecoration(
@@ -106,7 +109,7 @@ class CommunityCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                // Konten Utama (Thumbnail, Nama Komunitas, Jumlah Anggota, Tombol Gabung)
+                // Konten Utama
                 Padding(
                   padding: const EdgeInsets.all(14),
                   child: Column(

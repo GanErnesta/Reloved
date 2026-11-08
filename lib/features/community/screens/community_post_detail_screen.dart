@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import '../models/community_comment_model.dart';
 import '../models/community_post_model.dart';
+import '../repositories/community_repository.dart';
 import '../widgets/community_back_button.dart';
 import '../widgets/community_comment_input.dart';
 import '../widgets/community_comment_item.dart';
 import '../widgets/community_post_card.dart';
+import '../widgets/community_search_loading.dart';
+import '../../home/models/product.dart';
+import '../../home/services/product_service.dart';
+import '../../home/screens/product_detail_screen.dart';
 
 class CommunityPostDetailScreen extends StatefulWidget {
   final CommunityPostModel post;
@@ -20,15 +25,32 @@ class CommunityPostDetailScreen extends StatefulWidget {
 }
 
 class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
+  final CommunityRepository _repository = CommunityRepository();
   final TextEditingController _commentController = TextEditingController();
   late CommunityPostModel _post;
-  late List<CommunityCommentModel> _comments;
+  List<CommunityCommentModel> _comments = [];
+  bool _isLoadingComments = true;
 
   @override
   void initState() {
     super.initState();
     _post = widget.post;
-    _comments = List.from(CommunityCommentModel.initialComments);
+    _fetchComments();
+  }
+
+  Future<void> _fetchComments() async {
+    setState(() => _isLoadingComments = true);
+    try {
+      final list = await _repository.getComments(_post.id);
+      if (mounted) {
+        setState(() {
+          _comments = list;
+          _isLoadingComments = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingComments = false);
+    }
   }
 
   @override
@@ -37,62 +59,106 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
     super.dispose();
   }
 
-  void _togglePostLike() {
+  Future<void> _togglePostLike() async {
+    final prev = _post;
+    final newLiked = !_post.isLiked;
     setState(() {
-      final newLiked = !_post.isLiked;
       _post = _post.copyWith(
         isLiked: newLiked,
         likeCount: newLiked ? _post.likeCount + 1 : _post.likeCount - 1,
       );
     });
+
+    try {
+      await _repository.togglePostLike(prev.id, prev.isLiked);
+    } catch (_) {
+      if (mounted) setState(() => _post = prev);
+    }
   }
 
-  void _toggleCommentLike(int index) {
+  Future<void> _toggleCommentLike(int index) async {
+    final current = _comments[index];
+    final newLiked = !current.isLiked;
     setState(() {
-      final current = _comments[index];
-      final newLiked = !current.isLiked;
       _comments[index] = current.copyWith(
         isLiked: newLiked,
         likeCount: newLiked ? current.likeCount + 1 : current.likeCount - 1,
       );
     });
+
+    try {
+      await _repository.toggleCommentLike(current.id, current.isLiked);
+    } catch (_) {
+      if (mounted) setState(() => _comments[index] = current);
+    }
   }
 
-  void _sendComment() {
+  Future<void> _sendComment() async {
     final text = _commentController.text.trim();
     if (text.isEmpty) return;
 
-    setState(() {
-      _comments.add(
-        CommunityCommentModel(
-          id: 'c_${DateTime.now().millisecondsSinceEpoch}',
-          authorName: 'Falisha Keyrani',
-          authorAvatar: 'assets/images/avatar_falisha.png',
-          content: text,
-          likeCount: 10,
-          isLiked: false,
-        ),
-      );
-      _post = _post.copyWith(commentCount: _post.commentCount + 1);
-      _commentController.clear();
-    });
+    _commentController.clear();
     FocusScope.of(context).unfocus();
+
+    try {
+      final created = await _repository.addComment(
+        postId: _post.id,
+        content: text,
+      );
+      if (mounted) {
+        setState(() {
+          _comments.add(created);
+          _post = _post.copyWith(commentCount: _post.commentCount + 1);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+        );
+      }
+    }
   }
 
-  void _openProductDetail(AttachedProductModel product) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => Scaffold(
-          appBar: AppBar(title: const Text('Detail Produk')),
-          body: Center(
-            child: Text(
-              'Halaman Detail Produk:\n${product.title} (${product.price})',
-              textAlign: TextAlign.center,
-            ),
-          ),
+  Future<void> _openProductDetail(AttachedProductModel attachedProduct) async {
+    // 1. Tampilkan loading dialog agar layar tidak terasa freeze saat fetching data
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(
+          color: Color(0xFF9B2335),
         ),
       ),
     );
+
+    try {
+      // 2. Fetch data produk secara lengkap menggunakan ProductService milik Anda
+      final productService = ProductService();
+      final Product productData = await productService.getProductById(attachedProduct.id);
+
+      if (!mounted) return;
+      Navigator.pop(context); // Tutup loading dialog
+
+      // 3. Navigasi ke halaman Product Detail Screen
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ProductDetailScreen(product: productData),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // Tutup loading dialog
+
+      // Tampilkan error jika produk sudah dihapus atau gagal dimuat
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Gagal memuat detail produk. Barang mungkin sudah dihapus.'),
+          backgroundColor: Color(0xFF9B2335),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   @override
@@ -110,7 +176,7 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
           bottom: false,
           child: Column(
             children: [
-              // Header: Tombol Back & Judul "Detail Komen"
+              // Header
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
                 child: Row(
@@ -130,7 +196,7 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
                   ],
                 ),
               ),
-              // Konten Scrollable: Postingan Utama + Daftar Komentar
+              // Konten Scrollable
               Expanded(
                 child: ListView(
                   padding: const EdgeInsets.only(bottom: 16),
@@ -143,16 +209,23 @@ class _CommunityPostDetailScreenState extends State<CommunityPostDetailScreen> {
                           : null,
                     ),
                     const SizedBox(height: 4),
-                    ...List.generate(_comments.length, (index) {
-                      return CommunityCommentItem(
-                        comment: _comments[index],
-                        onLikeToggle: () => _toggleCommentLike(index),
-                      );
-                    }),
+                    if (_isLoadingComments)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 32),
+                        child: CommunitySearchLoading(
+                            message: 'Memuat komentar...'),
+                      )
+                    else
+                      ...List.generate(_comments.length, (index) {
+                        return CommunityCommentItem(
+                          comment: _comments[index],
+                          onLikeToggle: () => _toggleCommentLike(index),
+                        );
+                      }),
                   ],
                 ),
               ),
-              // Input Bar Komentar di Bagian Bawah
+              // Input Bar Komentar
               CommunityCommentInput(
                 controller: _commentController,
                 onSend: _sendComment,

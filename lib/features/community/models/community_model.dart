@@ -2,6 +2,7 @@ class CommunityModel {
   final String id;
   final String name;
   final String memberCountText;
+  final int memberCount;
   final String description;
   final String thumbnailAsset;
   final String backgroundAsset;
@@ -12,6 +13,7 @@ class CommunityModel {
     required this.id,
     required this.name,
     required this.memberCountText,
+    this.memberCount = 0,
     required this.description,
     required this.thumbnailAsset,
     required this.backgroundAsset,
@@ -19,20 +21,55 @@ class CommunityModel {
     this.isJoined = false,
   });
 
+  static String formatMemberCount(int count) {
+    if (count >= 1000) {
+      final rb = count ~/ 1000;
+      return '${rb}rb Anggota';
+    }
+    return '$count Anggota';
+  }
+
+  factory CommunityModel.fromMap(
+      Map<String, dynamic> map, {
+        bool isJoined = false,
+      }) {
+    final int count = (map['member_count'] as num?)?.toInt() ?? 0;
+    return CommunityModel(
+      id: map['id']?.toString() ?? '',
+      name: map['name']?.toString() ?? '',
+      memberCount: count,
+      memberCountText: formatMemberCount(count),
+      description: map['description']?.toString() ?? '',
+      thumbnailAsset: (map['thumbnail_url']?.toString().isNotEmpty ?? false)
+          ? map['thumbnail_url'].toString()
+          : 'assets/images/community_thumb_malang.png',
+      backgroundAsset: (map['background_url']?.toString().isNotEmpty ?? false)
+          ? map['background_url'].toString()
+          : 'assets/images/community_bg_malang.png',
+      bannerAsset: (map['banner_url']?.toString().isNotEmpty ?? false)
+          ? map['banner_url'].toString()
+          : 'assets/images/community_banner_malang.png',
+      isJoined: isJoined,
+    );
+  }
+
   CommunityModel copyWith({
     String? id,
     String? name,
     String? memberCountText,
+    int? memberCount,
     String? description,
     String? thumbnailAsset,
     String? backgroundAsset,
     String? bannerAsset,
     bool? isJoined,
   }) {
+    final nextCount = memberCount ?? this.memberCount;
     return CommunityModel(
       id: id ?? this.id,
       name: name ?? this.name,
-      memberCountText: memberCountText ?? this.memberCountText,
+      memberCount: nextCount,
+      memberCountText: memberCountText ?? formatMemberCount(nextCount),
       description: description ?? this.description,
       thumbnailAsset: thumbnailAsset ?? this.thumbnailAsset,
       backgroundAsset: backgroundAsset ?? this.backgroundAsset,
@@ -40,37 +77,4 @@ class CommunityModel {
       isJoined: isJoined ?? this.isJoined,
     );
   }
-
-  static List<CommunityModel> dummyCommunities = [
-    const CommunityModel(
-      id: 'com_1',
-      name: 'Mahasiswa Malang',
-      memberCountText: '100rb Anggota',
-      description:
-      'Komunitas ini bukan sekadar komunitas biasa, Melainkan sebuah wadah untuk mahasiswa, khususnya mahasiswa Malang, yang ingin menjual/membeli barang yang sudah tidak dipakai dan masih dalam keadaan bagus. Kamu juga bisa berdiskusi seputar kebutuhan kuliah, mencari referensi buku modul, hingga berbagi info perlengkapan kos dengan aman dan nyaman.',
-      thumbnailAsset: 'assets/images/community_thumb.png',
-      backgroundAsset: 'assets/images/community_card_bg.png',
-      bannerAsset: 'assets/images/community_banner_malang.png',
-    ),
-    const CommunityModel(
-      id: 'com_2',
-      name: 'Komunitas Mager UB',
-      memberCountText: '50rb Anggota',
-      description:
-      'Wadah berbagi informasi barang pre-loved, buku kuliah, jas lab, dan kebutuhan kos khusus mahasiswa di sekitar area Universitas Brawijaya. Transaksi lebih dekat dan aman melalui titik temu resmi di dalam kampus.',
-      thumbnailAsset: 'assets/images/community_thumb_mager_ub.png',
-      backgroundAsset: 'assets/images/community_bg_mager_ub.png',
-      bannerAsset: 'assets/images/community_banner_mager_ub.png',
-    ),
-    const CommunityModel(
-      id: 'com_3',
-      name: 'Mahasiswa UIN',
-      memberCountText: '50rb Anggota',
-      description:
-      'Komunitas jual beli, sewa barang harian, dan tukar tambah barang bekas layak pakai khusus mahasiswa UIN Malang. Temukan perlengkapan kuliah dan atribut organisasi dengan harga terjangkau.',
-      thumbnailAsset: 'assets/images/community_thumb_uin.png',
-      backgroundAsset: 'assets/images/community_bg_uin.png',
-      bannerAsset: 'assets/images/community_banner_uin.png',
-    ),
-  ];
 }
