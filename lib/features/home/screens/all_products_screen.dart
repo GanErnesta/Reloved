@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
@@ -12,10 +11,12 @@ import 'product_detail_screen.dart';
 
 class AllProductsScreen extends StatefulWidget {
   final String? categoryName;
+  final bool rentalOnly;
 
   const AllProductsScreen({
     super.key,
     this.categoryName,
+    this.rentalOnly = false,
   });
 
   @override
@@ -34,17 +35,29 @@ class _AllProductsScreenState extends State<AllProductsScreen> {
   }
 
   void _loadProducts() {
-    _productsFuture = widget.categoryName == null
-        ? _productService.getLatestProducts()
-        : _productService.getProductsByCategory(
-            widget.categoryName!,
-          );
+    if (widget.rentalOnly) {
+      _productsFuture = _productService.getRentalProducts();
+    } else if (widget.categoryName != null) {
+      _productsFuture = _productService.getProductsByCategory(
+        widget.categoryName!,
+      );
+    } else {
+      _productsFuture = _productService.getLatestProducts();
+    }
   }
 
   void _retryLoadProducts() {
     setState(() {
       _loadProducts();
     });
+  }
+
+  Future<void> _refreshProducts() async {
+    setState(() {
+      _loadProducts();
+    });
+
+    await _productsFuture;
   }
 
   @override
@@ -58,13 +71,7 @@ class _AllProductsScreenState extends State<AllProductsScreen> {
             Expanded(
               child: RefreshIndicator(
                 color: AppColors.primary,
-                onRefresh: () async {
-                  setState(() {
-                    _loadProducts();
-                  });
-
-                  await _productsFuture;
-                },
+                onRefresh: _refreshProducts,
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(
@@ -75,11 +82,15 @@ class _AllProductsScreenState extends State<AllProductsScreen> {
                   ),
                   child: Column(
                     children: [
-                      _buildPromoBanner(),
-                      const SizedBox(height: AppSpacing.md),
+                      if (!widget.rentalOnly) ...[
+                        _buildPromoBanner(),
+                        const SizedBox(height: AppSpacing.md),
+                      ],
                       _buildProductGrid(),
-                      const SizedBox(height: AppSpacing.md),
-                      _buildInformationText(),
+                      if (!widget.rentalOnly) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        _buildInformationText(),
+                      ],
                     ],
                   ),
                 ),
@@ -92,15 +103,12 @@ class _AllProductsScreenState extends State<AllProductsScreen> {
   }
 
   Widget _buildHeader(BuildContext context) {
-    final title = widget.categoryName ?? 'Semua Produk';
+    final title = widget.rentalOnly
+        ? 'Sewa'
+        : widget.categoryName ?? 'Semua Produk';
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.md,
-        8,
-        AppSpacing.md,
-        12,
-      ),
+      padding: const EdgeInsets.fromLTRB(AppSpacing.md, 8, AppSpacing.md, 12),
       child: Row(
         children: [
           GestureDetector(
@@ -140,10 +148,7 @@ class _AllProductsScreenState extends State<AllProductsScreen> {
   Widget _buildPromoBanner() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 9,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
       decoration: BoxDecoration(
         color: AppColors.primary,
         borderRadius: BorderRadius.circular(AppRadius.md),
@@ -185,9 +190,7 @@ class _AllProductsScreenState extends State<AllProductsScreen> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Padding(
             padding: EdgeInsets.symmetric(vertical: 60),
-            child: Center(
-              child: CircularProgressIndicator(),
-            ),
+            child: Center(child: CircularProgressIndicator()),
           );
         }
 
@@ -234,7 +237,9 @@ class _AllProductsScreenState extends State<AllProductsScreen> {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'Produk belum tersedia',
+                    widget.rentalOnly
+                        ? 'Belum ada barang yang disewakan'
+                        : 'Produk belum tersedia',
                     style: AppTextStyles.caption.copyWith(
                       color: AppColors.textSecondary,
                     ),
@@ -249,8 +254,7 @@ class _AllProductsScreenState extends State<AllProductsScreen> {
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: products.length,
-          gridDelegate:
-              const SliverGridDelegateWithFixedCrossAxisCount(
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
             crossAxisSpacing: 14,
             mainAxisSpacing: 18,
@@ -270,9 +274,7 @@ class _AllProductsScreenState extends State<AllProductsScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => ProductDetailScreen(
-                      product: product,
-                    ),
+                    builder: (_) => ProductDetailScreen(product: product),
                   ),
                 );
               },
@@ -291,10 +293,7 @@ class _AllProductsScreenState extends State<AllProductsScreen> {
           children: [
             TextSpan(
               text: 'Barang yang kamu cari habis? ',
-              style: AppTextStyles.caption.copyWith(
-                fontSize: 10,
-                height: 1.4,
-              ),
+              style: AppTextStyles.caption.copyWith(fontSize: 10, height: 1.4),
             ),
             TextSpan(
               text: 'Ketuk di sini',
@@ -308,10 +307,7 @@ class _AllProductsScreenState extends State<AllProductsScreen> {
             TextSpan(
               text:
                   ' untuk panduan pengadaan resmi atribut di Koperasi Mahasiswa (Kopma) UB.',
-              style: AppTextStyles.caption.copyWith(
-                fontSize: 10,
-                height: 1.4,
-              ),
+              style: AppTextStyles.caption.copyWith(fontSize: 10, height: 1.4),
             ),
           ],
         ),

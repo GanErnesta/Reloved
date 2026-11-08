@@ -1,6 +1,6 @@
-
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -12,8 +12,15 @@ class ProductService {
   ProductService({SupabaseClient? supabase})
       : _supabase = supabase ?? Supabase.instance.client;
 
+  static final ValueNotifier<int> productChanges =
+      ValueNotifier<int>(0);
+
   static const String _bucketName = 'product-images';
   static const int _maxImages = 5;
+
+  void _notifyProductChanges() {
+    productChanges.value++;
+  }
 
   Future<List<Product>> _mapProductsWithProfiles(
     List<dynamic> rows,
@@ -82,7 +89,12 @@ class ProductService {
             ? image.name.split('.').last.toLowerCase()
             : 'jpg';
 
-        const allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+        const allowedExtensions = [
+          'jpg',
+          'jpeg',
+          'png',
+          'webp',
+        ];
 
         if (!allowedExtensions.contains(extension)) {
           throw Exception('Format foto tidak didukung: $extension');
@@ -131,7 +143,9 @@ class ProductService {
     } catch (e) {
       if (uploadedPaths.isNotEmpty) {
         try {
-          await _supabase.storage.from(_bucketName).remove(uploadedPaths);
+          await _supabase.storage
+              .from(_bucketName)
+              .remove(uploadedPaths);
         } catch (_) {}
       }
 
@@ -239,16 +253,108 @@ class ProductService {
           .select('id')
           .single();
 
+      _notifyProductChanges();
+
       return response['id'].toString();
     } catch (e) {
       if (uploadedPaths.isNotEmpty) {
         try {
-          await _supabase.storage.from(_bucketName).remove(uploadedPaths);
+          await _supabase.storage
+              .from(_bucketName)
+              .remove(uploadedPaths);
         } catch (_) {}
       }
 
       rethrow;
     }
+  }
+
+  Future<void> deleteProduct(String productId) async {
+    final user = _supabase.auth.currentUser;
+
+    if (user == null) {
+      throw Exception('Pengguna belum login.');
+    }
+
+    if (productId.isEmpty) {
+      throw Exception('ID produk tidak valid.');
+    }
+
+    final productResponse = await _supabase
+        .from('products')
+        .select('id, seller_id, image_url, image_urls')
+        .eq('id', productId)
+        .maybeSingle();
+
+    if (productResponse == null) {
+      throw Exception('Produk tidak ditemukan.');
+    }
+
+    final sellerId = productResponse['seller_id']?.toString();
+
+    if (sellerId != user.id) {
+      throw Exception('Kamu tidak memiliki izin menghapus produk ini.');
+    }
+
+    final List<String> imagePaths = [];
+
+    final imageUrls = productResponse['image_urls'];
+
+    if (imageUrls is List) {
+      for (final imageUrl in imageUrls) {
+        if (imageUrl is String) {
+          final path = _getStoragePath(imageUrl);
+
+          if (path != null && path.startsWith('${user.id}/')) {
+            imagePaths.add(path);
+          }
+        }
+      }
+    }
+
+    final mainImageUrl = productResponse['image_url'];
+
+    if (mainImageUrl is String) {
+      final path = _getStoragePath(mainImageUrl);
+
+      if (path != null && path.startsWith('${user.id}/')) {
+        imagePaths.add(path);
+      }
+    }
+
+    await _supabase
+        .from('products')
+        .delete()
+        .eq('id', productId)
+        .eq('seller_id', user.id);
+
+    _notifyProductChanges();
+
+    final uniqueImagePaths = imagePaths.toSet().toList();
+
+    if (uniqueImagePaths.isNotEmpty) {
+      try {
+        await _supabase.storage
+            .from(_bucketName)
+            .remove(uniqueImagePaths);
+      } catch (e) {
+        debugPrint('Gagal menghapus foto produk: $e');
+      }
+    }
+  }
+
+  String? _getStoragePath(String imageUrl) {
+    final marker = '/$_bucketName/';
+
+    final index = imageUrl.indexOf(marker);
+
+    if (index == -1) return null;
+
+    final path = imageUrl.substring(index + marker.length);
+
+    if (path.isEmpty) return null;
+
+    return Uri.decodeComponent(path);
   }
 
   Future<List<Product>> getLatestProducts() async {
@@ -369,9 +475,7 @@ class ProductService {
       uniqueProducts.values.toList(),
     );
 
-    products.sort(
-      (a, b) => b.createdAt.compareTo(a.createdAt),
-    );
+    products.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
     return products;
   }
@@ -416,9 +520,27 @@ class ProductService {
     return _mapProductsWithProfiles(response);
   }
 
-  Future<List<Product>> getProductsByCategory(
-    String categoryName,
-  ) async {
+  Future<List<Product>> getProductsBySellerId(String sellerId) async {
+    if (sellerId.isEmpty) {
+      throw Exception('ID penjual tidak valid.');
+    }
+
+    final response = await _supabase
+        .from('products')
+        .select('''
+          *,
+          categories (
+            id,
+            name
+          )
+        ''')
+        .eq('seller_id', sellerId)
+        .order('created_at', ascending: false);
+
+    return _mapProductsWithProfiles(response);
+  }
+
+  Future<List<Product>> getProductsByCategory(String categoryName) async {
     final normalizedName = categoryName.replaceAll('\n', ' ').trim();
 
     final categoryResponse = await _supabase
@@ -442,6 +564,23 @@ class ProductService {
         ''')
         .eq('status', 'available')
         .eq('category_id', categoryResponse['id'])
+        .order('created_at', ascending: false);
+
+    return _mapProductsWithProfiles(response);
+  }
+
+  Future<List<Product>> getRentalProducts() async {
+    final response = await _supabase
+        .from('products')
+        .select('''
+          *,
+          categories (
+            id,
+            name
+          )
+        ''')
+        .eq('status', 'available')
+        .eq('transaction_type', 'rent')
         .order('created_at', ascending: false);
 
     return _mapProductsWithProfiles(response);

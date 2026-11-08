@@ -9,7 +9,7 @@ class ChatRoomHeader extends StatelessWidget {
   final String name;
   final String? avatarUrl;
   final VoidCallback onBack;
-  final VoidCallback onMore;
+  final ValueChanged<String> onMore;
 
   const ChatRoomHeader({
     super.key,
@@ -50,6 +50,7 @@ class ChatRoomHeader extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 18),
+
             CircleAvatar(
               radius: 18,
               backgroundColor: const Color(0xFFF1E4E7),
@@ -65,6 +66,7 @@ class ChatRoomHeader extends StatelessWidget {
             ),
             
             const SizedBox(width: 14),
+
             Expanded(
               child: Text(
                 name,
@@ -76,7 +78,9 @@ class ChatRoomHeader extends StatelessWidget {
                 ),
               ),
             ),
+
             const SizedBox(width: 12),
+
             Container(
               width: 11,
               height: 11,
@@ -85,14 +89,42 @@ class ChatRoomHeader extends StatelessWidget {
                 shape: BoxShape.circle,
               ),
             ),
-            const SizedBox(width: 12),
-            GestureDetector(
-              onTap: onMore,
-              child: const Icon(
+
+            const SizedBox(width: 4),
+
+            PopupMenuButton<String>(
+              onSelected: onMore,
+              icon: const Icon(
                 Icons.more_vert,
                 color: Colors.black,
                 size: 25,
               ),
+              color: Colors.white,
+              elevation: 4,
+              surfaceTintColor: Colors.white,
+              position: PopupMenuPosition.under,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              itemBuilder: (context) => [
+                const PopupMenuItem<String>(
+                  value: 'profile',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.person_outline,
+                        color: Colors.black87,
+                        size: 21,
+                      ),
+                      SizedBox(width: 12),
+                      Text(
+                        'Lihat Profil Penjual',
+                        style: TextStyle(fontSize: 14),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ],
         ),

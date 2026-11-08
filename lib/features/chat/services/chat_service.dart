@@ -1,8 +1,11 @@
+
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../core/config/supabase_config.dart';
 import '../models/chat_model.dart';
 import '../models/message_model.dart';
+import '../models/safe_meeting_point_model.dart';
 
 class ChatService {
   final SupabaseClient _client = SupabaseConfig.client;
@@ -57,6 +60,15 @@ class ChatService {
   Future<List<Map<String, dynamic>>> fetchConversations() async {
     final userId = _currentUserId;
 
+    final hiddenResult = await _client
+        .from('conversation_hidden')
+        .select('conversation_id')
+        .eq('user_id', userId);
+
+    final hiddenIds = hiddenResult
+        .map((item) => item['conversation_id'].toString())
+        .toSet();
+
     final result = await _client
         .from('conversations')
         .select('''
@@ -71,11 +83,15 @@ class ChatService {
         .or('buyer_id.eq.$userId,seller_id.eq.$userId')
         .order('updated_at', ascending: false);
 
-    if (result.isEmpty) return [];
+    final visibleConversations = result.where((item) {
+      return !hiddenIds.contains(item['id'].toString());
+    }).toList();
+
+    if (visibleConversations.isEmpty) return [];
 
     final profileIds = <String>{};
 
-    for (final item in result) {
+    for (final item in visibleConversations) {
       profileIds.add(item['buyer_id'].toString());
       profileIds.add(item['seller_id'].toString());
     }
@@ -95,12 +111,13 @@ class ChatService {
     final Map<String, Map<String, dynamic>> profiles = {};
 
     for (final profile in profileResult) {
-      profiles[profile['id'].toString()] = Map<String, dynamic>.from(profile);
+      profiles[profile['id'].toString()] =
+          Map<String, dynamic>.from(profile);
     }
 
     final conversations = <Map<String, dynamic>>[];
 
-    for (final item in result) {
+    for (final item in visibleConversations) {
       final conversationId = item['id'];
       final buyerId = item['buyer_id'].toString();
       final sellerId = item['seller_id'].toString();
@@ -132,6 +149,37 @@ class ChatService {
     return conversations;
   }
 
+  Future<void> hideConversations(List<String> conversationIds) async {
+    if (conversationIds.isEmpty) return;
+
+    final userId = _currentUserId;
+
+    await _client.from('conversation_hidden').upsert(
+      conversationIds.map((id) {
+        return {
+          'conversation_id': id,
+          'user_id': userId,
+        };
+      }).toList(),
+      onConflict: 'conversation_id,user_id',
+    );
+  }
+
+  Future<void> markConversationsAsRead(
+    List<String> conversationIds,
+  ) async {
+    if (conversationIds.isEmpty) return;
+
+    final userId = _currentUserId;
+
+    await _client
+        .from('messages')
+        .update({'is_read': true})
+        .inFilter('conversation_id', conversationIds)
+        .neq('sender_id', userId)
+        .eq('is_read', false);
+  }
+
   Future<List<MessageModel>> fetchMessages(String conversationId) async {
     final result = await _client
         .from('messages')
@@ -158,6 +206,8 @@ class ChatService {
           'conversation_id': conversationId,
           'sender_id': _currentUserId,
           'message': text,
+          'message_type': 'text',
+          'metadata': {},
         })
         .select()
         .single();
@@ -175,7 +225,9 @@ class ChatService {
               .map((item) => MessageModel.fromJson(item))
               .toList();
 
-          messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+          messages.sort(
+            (a, b) => a.createdAt.compareTo(b.createdAt),
+          );
 
           return messages;
         });
@@ -190,6 +242,57 @@ class ChatService {
         .eq('conversation_id', conversationId)
         .neq('sender_id', userId)
         .eq('is_read', false);
+  }
+
+  Future<Map<String, dynamic>?> fetchConversationDetails(
+    String conversationId,
+  ) async {
+    final userId = _currentUserId;
+
+    final conversation = await _client
+        .from('conversations')
+        .select('''
+        buyer_id,
+        seller_id,
+        product:products!conversations_product_id_fkey(
+          id,
+          name,
+          price,
+          image_url
+        )
+      ''')
+        .eq('id', conversationId)
+        .maybeSingle();
+
+    if (conversation == null) return null;
+
+    final buyerId = conversation['buyer_id'].toString();
+    final sellerId = conversation['seller_id'].toString();
+
+    if (userId != buyerId && userId != sellerId) {
+      return null;
+    }
+
+    final otherUserId = userId == buyerId ? sellerId : buyerId;
+
+    final profile = await _client
+        .from('public_profiles')
+        .select('id, nama, foto_profil')
+        .eq('id', otherUserId)
+        .maybeSingle();
+
+    final product = conversation['product'];
+
+    if (product is! Map) return null;
+
+    return {
+      'conversationId': conversationId,
+      'sellerName': profile?['nama']?.toString() ?? 'Pengguna Reloved',
+      'sellerAvatar': profile?['foto_profil']?.toString(),
+      'productName': product['name']?.toString() ?? 'Produk',
+      'productPrice': product['price']?.toString() ?? '0',
+      'productImage': product['image_url']?.toString() ?? '',
+    };
   }
 
   Future<Map<String, dynamic>?> fetchOtherParticipantProfile(
@@ -214,6 +317,106 @@ class ChatService {
         .eq('id', otherUserId)
         .maybeSingle();
 
-    return profile == null ? null : Map<String, dynamic>.from(profile);
+    return profile == null
+        ? null
+        : Map<String, dynamic>.from(profile);
+  }
+
+  Future<List<SafeMeetingPointModel>> fetchSafeMeetingPoints() async {
+    final response = await _client
+        .from('safe_meeting_points')
+        .select('id, name, full_address, image_url, latitude, longitude')
+        .eq('is_active', true)
+        .order('name');
+
+    return response
+        .map(
+          (item) => SafeMeetingPointModel.fromJson(
+            Map<String, dynamic>.from(item),
+          ),
+        )
+        .toList();
+  }
+
+  Future<MessageModel> sendSafeMeetingPoint({
+    required String conversationId,
+    required List<SafeMeetingPointModel> locations,
+  }) async {
+    if (locations.isEmpty) {
+      throw Exception('Pilih minimal satu titik temu.');
+    }
+
+    final metadata = {
+      'locations': locations.map((location) => location.toJson()).toList(),
+    };
+
+    final result = await _client
+        .from('messages')
+        .insert({
+          'conversation_id': conversationId,
+          'sender_id': _currentUserId,
+          'message': 'Titik temu telah ditetapkan.',
+          'message_type': 'safe_meeting_point',
+          'metadata': metadata,
+        })
+        .select()
+        .single();
+
+    return MessageModel.fromJson(result);
+  }
+
+  Future<MessageModel> sendImageMessage({
+    required String conversationId,
+    required XFile image,
+    String? message,
+  }) async {
+    final userId = _currentUserId;
+
+    final extension = image.name.split('.').last.toLowerCase();
+    final fileName = '${DateTime.now().microsecondsSinceEpoch}.$extension';
+
+    final filePath = '$userId/$conversationId/$fileName';
+    final bytes = await image.readAsBytes();
+
+    final contentType = switch (extension) {
+      'png' => 'image/png',
+      'webp' => 'image/webp',
+      'jpg' || 'jpeg' => 'image/jpeg',
+      _ => 'application/octet-stream',
+    };
+
+    await _client.storage
+        .from('chat-images')
+        .uploadBinary(
+          filePath,
+          bytes,
+          fileOptions: FileOptions(
+            contentType: contentType,
+            upsert: false,
+          ),
+        );
+
+    final imageUrl = _client.storage
+        .from('chat-images')
+        .getPublicUrl(filePath);
+
+    final caption = message?.trim() ?? '';
+
+    final result = await _client
+        .from('messages')
+        .insert({
+          'conversation_id': conversationId,
+          'sender_id': userId,
+          'message': caption.isEmpty ? 'Foto lokasi' : caption,
+          'message_type': 'image',
+          'metadata': {
+            'image_url': imageUrl,
+            'file_name': fileName,
+          },
+        })
+        .select()
+        .single();
+
+    return MessageModel.fromJson(result);
   }
 }

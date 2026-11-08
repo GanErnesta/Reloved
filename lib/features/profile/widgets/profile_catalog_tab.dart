@@ -9,11 +9,15 @@ import '../../home/widgets/product_card.dart';
 import '../../home/screens/product_detail_screen.dart';
 
 class ProfileCatalogTab extends StatefulWidget {
-  const ProfileCatalogTab({super.key});
+  final String? sellerId;
+
+  const ProfileCatalogTab({
+    super.key,
+    this.sellerId,
+  });
 
   @override
-  State<ProfileCatalogTab> createState() =>
-      _ProfileCatalogTabState();
+  State<ProfileCatalogTab> createState() => _ProfileCatalogTabState();
 }
 
 class _ProfileCatalogTabState extends State<ProfileCatalogTab> {
@@ -21,20 +25,145 @@ class _ProfileCatalogTabState extends State<ProfileCatalogTab> {
 
   late Future<List<Product>> _productsFuture;
 
+  final Set<String> _deletingProducts = {};
+
+  bool get _canDelete => widget.sellerId == null;
+
   @override
   void initState() {
     super.initState();
-    _productsFuture = _service.getMyProducts();
+    _loadProducts();
+  }
+
+  void _loadProducts() {
+    _productsFuture = widget.sellerId != null
+        ? _service.getProductsBySellerId(widget.sellerId!)
+        : _service.getMyProducts();
   }
 
   Future<void> _refresh() async {
-    final future = _service.getMyProducts();
+    setState(_loadProducts);
+    await _productsFuture;
+  }
+
+  Future<bool> _showDeleteConfirmation(Product product) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Hapus Produk?'),
+          content: Text(
+            'Apakah kamu yakin ingin menghapus "${product.name}"? '
+            'Produk ini juga akan dihapus dari katalog.',
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, false);
+              },
+              child: const Text(
+                'Batal',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, true);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.danger,
+                foregroundColor: Colors.white,
+                elevation: 0,
+              ),
+              child: const Text('Hapus'),
+            ),
+          ],
+        );
+      },
+    );
+
+    return result == true;
+  }
+
+  Future<void> _deleteProduct(Product product) async {
+    final confirmed = await _showDeleteConfirmation(product);
+
+    if (!confirmed || !mounted) return;
 
     setState(() {
-      _productsFuture = future;
+      _deletingProducts.add(product.id);
     });
 
-    await future;
+    try {
+      await _service.deleteProduct(product.id);
+
+      if (!mounted) return;
+
+      setState(() {
+        _deletingProducts.remove(product.id);
+        _loadProducts();
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Produk berhasil dihapus.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _deletingProducts.remove(product.id);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal menghapus produk: $e'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Widget _buildEmptyState() {
+    return RefreshIndicator(
+      onRefresh: _refresh,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: const [
+          SizedBox(height: 70),
+          Icon(
+            Icons.shopping_bag_outlined,
+            size: 58,
+            color: AppColors.textSecondary,
+          ),
+          SizedBox(height: 12),
+          Center(
+            child: Text(
+              'Belum Ada Produk',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          SizedBox(height: 6),
+          Center(
+            child: Text(
+              'Produk yang tersedia akan muncul di sini.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -63,9 +192,7 @@ class _ProfileCatalogTabState extends State<ProfileCatalogTab> {
                   const SizedBox(height: 12),
                   const Text(
                     'Gagal memuat katalog',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -87,41 +214,7 @@ class _ProfileCatalogTabState extends State<ProfileCatalogTab> {
         final products = snapshot.data ?? [];
 
         if (products.isEmpty) {
-          return RefreshIndicator(
-            onRefresh: _refresh,
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              children: const [
-                SizedBox(height: 70),
-                Icon(
-                  Icons.shopping_bag_outlined,
-                  size: 58,
-                  color: AppColors.textSecondary,
-                ),
-                SizedBox(height: 12),
-                Center(
-                  child: Text(
-                    'Belum Ada Produk',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                SizedBox(height: 6),
-                Center(
-                  child: Text(
-                    'Produk yang kamu jual atau sewakan\n'
-                    'akan muncul di sini.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
+          return _buildEmptyState();
         }
 
         return RefreshIndicator(
@@ -139,24 +232,87 @@ class _ProfileCatalogTabState extends State<ProfileCatalogTab> {
             ),
             itemBuilder: (context, index) {
               final product = products[index];
+              final isDeleting = _deletingProducts.contains(product.id);
 
-              return ProductCard(
-                product: ProductItem(
-                  imageUrl: product.imageUrl,
-                  name: product.name,
-                  price: formatPrice(product.price),
-                  location: product.locationName,
-                ),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ProductDetailScreen(
-                        product: product,
+              return Stack(
+                children: [
+                  Positioned.fill(
+                    child: ProductCard(
+                      product: ProductItem(
+                        imageUrl: product.imageUrl,
+                        name: product.name,
+                        price: formatPrice(product.price),
+                        location: product.locationName,
+                      ),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ProductDetailScreen(
+                              product: product,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+
+                  if (_canDelete)
+                    Positioned(
+                      top: 6,
+                      right: 6,
+                      child: Material(
+                        color: Colors.white,
+                        shape: const CircleBorder(),
+                        elevation: 2,
+                        child: isDeleting
+                            ? const Padding(
+                                padding: EdgeInsets.all(10),
+                                child: SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              )
+                            : PopupMenuButton<String>(
+                                tooltip: 'Pilihan produk',
+                                icon: const Icon(
+                                  Icons.more_vert,
+                                  color: AppColors.textPrimary,
+                                  size: 21,
+                                ),
+                                onSelected: (value) {
+                                  if (value == 'delete') {
+                                    _deleteProduct(product);
+                                  }
+                                },
+                                itemBuilder: (context) => [
+                                  const PopupMenuItem(
+                                    value: 'delete',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.delete_outline,
+                                          color: AppColors.danger,
+                                          size: 20,
+                                        ),
+                                        SizedBox(width: 10),
+                                        Text(
+                                          'Hapus Produk',
+                                          style: TextStyle(
+                                            color: AppColors.danger,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
                       ),
                     ),
-                  );
-                },
+                ],
               );
             },
           ),

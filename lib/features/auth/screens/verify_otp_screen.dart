@@ -54,33 +54,30 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
 
     seconds = 60;
 
-    timer = Timer.periodic(
-      const Duration(seconds: 1),
-      (t) {
-        if (!mounted) {
-          t.cancel();
-          return;
-        }
+    timer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
 
-        if (seconds <= 1) {
-          t.cancel();
+      if (seconds <= 1) {
+        t.cancel();
 
-          setState(() {
-            seconds = 0;
-          });
-        } else {
-          setState(() {
-            seconds--;
-          });
-        }
-      },
-    );
+        setState(() {
+          seconds = 0;
+        });
+      } else {
+        setState(() {
+          seconds--;
+        });
+      }
+    });
   }
 
   void showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> verifyOtp() async {
@@ -119,9 +116,7 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
 
       if (!mounted) return;
 
-      showMessage(
-        e.toString().replaceFirst('Exception: ', ''),
-      );
+      showMessage(e.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) {
         setState(() {
@@ -151,9 +146,7 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
 
       if (!mounted) return;
 
-      showMessage(
-        e.toString().replaceFirst('Exception: ', ''),
-      );
+      showMessage(e.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) {
         setState(() {
@@ -169,9 +162,7 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
       backgroundColor: AppColors.surface,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.lg,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
           child: Column(
             children: [
               const SizedBox(height: 30),
@@ -185,9 +176,7 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
                 padding: const EdgeInsets.all(AppSpacing.md),
                 decoration: BoxDecoration(
                   color: const Color(0xffF5E8EA),
-                  borderRadius: BorderRadius.circular(
-                    AppRadius.lg,
-                  ),
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -211,15 +200,13 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
                           ),
                           TextSpan(
                             text: widget.email,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                            ),
+                            style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ],
                       ),
                     ),
 
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 26),
 
                     OtpField(
                       onCompleted: (value) {
@@ -227,20 +214,15 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
                       },
                     ),
 
-                    const SizedBox(height: 24),
-
                     Center(
                       child: seconds == 0
                           ? TextButton(
-                              onPressed: isResending
-                                  ? null
-                                  : resendOtp,
+                              onPressed: isResending ? null : resendOtp,
                               child: Text(
                                 isResending
                                     ? 'Mengirim ulang...'
                                     : 'Kirim Ulang OTP',
-                                style: AppTextStyles.bodyMedium
-                                    .copyWith(
+                                style: AppTextStyles.bodyMedium.copyWith(
                                   color: AppColors.primary,
                                 ),
                               ),
@@ -250,8 +232,7 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
                               style: AppTextStyles.caption,
                             ),
                     ),
-
-                    const SizedBox(height: 26),
+                    const SizedBox(height: 20),
 
                     PrimaryButton(
                       text: 'Verifikasi',
