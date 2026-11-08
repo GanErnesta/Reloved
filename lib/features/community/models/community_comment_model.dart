@@ -1,5 +1,7 @@
 class CommunityCommentModel {
   final String id;
+  final String postId;
+  final String authorId;
   final String authorName;
   final String authorAvatar;
   final String content;
@@ -8,6 +10,8 @@ class CommunityCommentModel {
 
   const CommunityCommentModel({
     required this.id,
+    this.postId = '',
+    this.authorId = '',
     required this.authorName,
     required this.authorAvatar,
     required this.content,
@@ -15,8 +19,33 @@ class CommunityCommentModel {
     this.isLiked = false,
   });
 
+  factory CommunityCommentModel.fromMap(
+      Map<String, dynamic> map, {
+        bool isLiked = false,
+      }) {
+    final profileMap = map['profiles'] as Map<String, dynamic>?;
+    final String rawAvatar = profileMap?['foto_profil']?.toString() ?? '';
+
+    return CommunityCommentModel(
+      id: map['id']?.toString() ?? '',
+      postId: map['post_id']?.toString() ?? '',
+      authorId: map['author_id']?.toString() ?? '',
+      authorName: (profileMap?['nama']?.toString().isNotEmpty ?? false)
+          ? profileMap!['nama'].toString()
+          : 'Mahasiswa UB',
+      authorAvatar: rawAvatar.isNotEmpty
+          ? rawAvatar
+          : 'assets/images/avatar_falisha.png',
+      content: map['content']?.toString() ?? '',
+      likeCount: (map['like_count'] as num?)?.toInt() ?? 0,
+      isLiked: isLiked,
+    );
+  }
+
   CommunityCommentModel copyWith({
     String? id,
+    String? postId,
+    String? authorId,
     String? authorName,
     String? authorAvatar,
     String? content,
@@ -25,6 +54,8 @@ class CommunityCommentModel {
   }) {
     return CommunityCommentModel(
       id: id ?? this.id,
+      postId: postId ?? this.postId,
+      authorId: authorId ?? this.authorId,
       authorName: authorName ?? this.authorName,
       authorAvatar: authorAvatar ?? this.authorAvatar,
       content: content ?? this.content,
@@ -32,24 +63,4 @@ class CommunityCommentModel {
       isLiked: isLiked ?? this.isLiked,
     );
   }
-
-  static List<CommunityCommentModel> initialComments = [
-    const CommunityCommentModel(
-      id: 'c_1',
-      authorName: 'Windah Basudara',
-      authorAvatar: 'assets/images/avatar_windah.png',
-      content:
-      'Wih! kebetulan aku pengen banget buku itu... aku pasti akan menamatkan buku ini!',
-      likeCount: 10,
-      isLiked: false,
-    ),
-    const CommunityCommentModel(
-      id: 'c_2',
-      authorName: 'Timothy Ronald',
-      authorAvatar: 'assets/images/avatar_timothy.png',
-      content: 'Aduh harus beli secepatnya nih! sebelum habis.',
-      likeCount: 11,
-      isLiked: true,
-    ),
-  ];
 }

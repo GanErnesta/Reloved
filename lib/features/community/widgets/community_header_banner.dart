@@ -30,8 +30,11 @@ class _CommunityHeaderBannerState extends State<CommunityHeaderBanner> {
   @override
   Widget build(BuildContext context) {
     final String fullDescription = widget.community.description;
-    final bool isLongDescription =
-        fullDescription.length > _collapsedCharLimit;
+    final bool isLongDescription = fullDescription.length > _collapsedCharLimit;
+
+    // Menggunakan getter agar teks selalu up-to-date saat _memberCount bertambah
+    final String memberCountString =
+    CommunityModel.formatMemberCount(widget.community.memberCount);
 
     return AnimatedSize(
       duration: const Duration(milliseconds: 250),
@@ -46,7 +49,6 @@ class _CommunityHeaderBannerState extends State<CommunityHeaderBanner> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Gambar Banner dengan Tombol Back Overlay
             Stack(
               children: [
                 ClipRRect(
@@ -67,11 +69,6 @@ class _CommunityHeaderBannerState extends State<CommunityHeaderBanner> {
                             end: Alignment.bottomCenter,
                           ),
                         ),
-                        child: const Icon(
-                          Icons.landscape_rounded,
-                          size: 64,
-                          color: Colors.white54,
-                        ),
                       );
                     },
                   ),
@@ -86,7 +83,6 @@ class _CommunityHeaderBannerState extends State<CommunityHeaderBanner> {
                 ),
               ],
             ),
-            // Informasi Komunitas
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
               child: Column(
@@ -103,8 +99,9 @@ class _CommunityHeaderBannerState extends State<CommunityHeaderBanner> {
                   const SizedBox(height: 10),
                   Row(
                     children: [
+                      // SEKARANG MENGGUNAKAN VARIABEL ASLI
                       Text(
-                        widget.community.memberCountText.toLowerCase(),
+                        memberCountString.toLowerCase(),
                         style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
@@ -148,10 +145,10 @@ class _CommunityHeaderBannerState extends State<CommunityHeaderBanner> {
                                 borderRadius: BorderRadius.circular(18),
                               ),
                             ),
-                            // Tanpa tanda centang ketika sudah bergabung
-                            child: const Text(
-                              'Bergabung',
-                              style: TextStyle(
+                            // TEKS BERUBAH JIKA SUDAH JOIN
+                            child: Text(
+                              widget.isJoined ? 'Tergabung' : 'Bergabung',
+                              style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -162,7 +159,6 @@ class _CommunityHeaderBannerState extends State<CommunityHeaderBanner> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  // Deskripsi terbatas dengan tombol "... See more" / "See less"
                   _buildExpandableDescription(
                     fullDescription,
                     isLongDescription,
@@ -187,7 +183,6 @@ class _CommunityHeaderBannerState extends State<CommunityHeaderBanner> {
         ),
       );
     }
-
     final String displayedText = _isExpanded
         ? text
         : '${text.substring(0, _collapsedCharLimit).trimRight()}... ';
