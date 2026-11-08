@@ -6,8 +6,8 @@ import '../../../core/constants/app_spacing.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../models/product.dart';
 import '../services/product_service.dart';
-import 'product_card.dart';
 import '../screens/product_detail_screen.dart';
+import 'product_card.dart';
 
 class ProductSection extends StatefulWidget {
   final VoidCallback onSeeAll;
@@ -29,11 +29,22 @@ class ProductSectionState extends State<ProductSection> {
   @override
   void initState() {
     super.initState();
+
     _loadProducts();
+
+    ProductService.productChanges.addListener(
+      _onProductsChanged,
+    );
   }
 
   void _loadProducts() {
     _productsFuture = _productService.getLatestProducts();
+  }
+
+  void _onProductsChanged() {
+    if (!mounted) return;
+
+    refresh();
   }
 
   Future<void> refresh() async {
@@ -44,6 +55,15 @@ class ProductSectionState extends State<ProductSection> {
     });
 
     await future;
+  }
+
+  @override
+  void dispose() {
+    ProductService.productChanges.removeListener(
+      _onProductsChanged,
+    );
+
+    super.dispose();
   }
 
   @override
