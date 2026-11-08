@@ -15,16 +15,10 @@ class MainScreen extends StatefulWidget {
   static const int ordersTab = 2;
   static const int profileTab = 3;
 
-  /// Tab yang sedang aktif. Mengubah nilai ini akan memindahkan tab.
   static final ValueNotifier<int> tabIndex = ValueNotifier<int>(homeTab);
 
-  /// Route milik MainScreen yang sedang aktif (dipakai untuk popUntil).
   static ModalRoute<dynamic>? _route;
 
-  /// Kembali ke MainScreen (menutup semua layar di atasnya, mis. Cart,
-  /// Checkout, Payment) lalu membuka tab [index].
-  ///
-  /// Contoh: MainScreen.goToTab(context, MainScreen.ordersTab);
   static void goToTab(BuildContext context, int index) {
     final navigator = Navigator.of(context);
     final route = _route;
@@ -33,10 +27,9 @@ class MainScreen extends StatefulWidget {
       navigator.popUntil((r) => r == route);
       tabIndex.value = index;
     } else {
-      // Cadangan: MainScreen belum/tidak aktif, buat baru dan bersihkan stack.
       navigator.pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => MainScreen(initialIndex: index)),
-            (route) => false,
+        (route) => false,
       );
     }
   }
@@ -59,6 +52,7 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
+
     currentIndex = widget.initialIndex;
     MainScreen.tabIndex.value = currentIndex;
     MainScreen.tabIndex.addListener(_onTabRequested);
@@ -67,6 +61,7 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+
     _myRoute = ModalRoute.of(context);
     MainScreen._route = _myRoute;
   }
@@ -74,9 +69,11 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void dispose() {
     MainScreen.tabIndex.removeListener(_onTabRequested);
+
     if (MainScreen._route == _myRoute) {
       MainScreen._route = null;
     }
+
     super.dispose();
   }
 
@@ -84,11 +81,16 @@ class _MainScreenState extends State<MainScreen> {
     if (!mounted) return;
 
     final requested = MainScreen.tabIndex.value;
+
     if (requested != currentIndex) {
       setState(() {
         currentIndex = requested;
       });
     }
+  }
+
+  Widget _navIcon(String asset, {double size = 24}) {
+    return Image.asset(asset, width: size, height: size, fit: BoxFit.contain);
   }
 
   @override
@@ -97,25 +99,25 @@ class _MainScreenState extends State<MainScreen> {
       body: IndexedStack(index: currentIndex, children: pages),
       bottomNavigationBar: NavigationBar(
         selectedIndex: currentIndex,
-        destinations: const [
+        destinations: [
           NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
+            icon: _navIcon('assets/icons/home.png'),
+            selectedIcon: _navIcon('assets/icons/home_active.png'),
             label: 'Home',
           ),
           NavigationDestination(
-            icon: Icon(Icons.chat_bubble_outline),
-            selectedIcon: Icon(Icons.chat),
+            icon: _navIcon('assets/icons/chat.png'),
+            selectedIcon: _navIcon('assets/icons/chat_active.png'),
             label: 'Chat',
           ),
           NavigationDestination(
-            icon: Icon(Icons.shopping_bag_outlined),
-            selectedIcon: Icon(Icons.shopping_bag),
+            icon: _navIcon('assets/icons/order.png'),
+            selectedIcon: _navIcon('assets/icons/order_active.png'),
             label: 'Order',
           ),
           NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
+            icon: _navIcon('assets/icons/profile.png'),
+            selectedIcon: _navIcon('assets/icons/profile_active.png'),
             label: 'Profile',
           ),
         ],

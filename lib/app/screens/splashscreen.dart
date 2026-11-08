@@ -161,9 +161,11 @@ class _SplashScreenState extends State<SplashScreen>
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   Text(
-                    'Campus Marketplace',
+                    'Preloved Aman\nSekampus Nyaman',
+                    textAlign: TextAlign.center,
                     style: AppTextStyles.caption.copyWith(
                       fontSize: 14,
+                      height: 1.5,
                       color: Colors.grey,
                     ),
                   ),
