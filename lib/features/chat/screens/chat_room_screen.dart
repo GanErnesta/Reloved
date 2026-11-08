@@ -1,7 +1,7 @@
-
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/intl.dart';
 
 import '../models/message_model.dart';
 import '../models/safe_meeting_point_model.dart';
@@ -20,7 +20,7 @@ import '../../profile/screens/seller_profile_screen.dart';
 class ChatRoomScreen extends StatefulWidget {
   final String conversationId;
   final String sellerName;
-  final String? sellerAvatar; // 1. Tambahkan parameter avatar penjual
+  final String? sellerAvatar;
   final String productName;
   final String productPrice;
   final String productImage;
@@ -29,7 +29,7 @@ class ChatRoomScreen extends StatefulWidget {
     super.key,
     required this.conversationId,
     required this.sellerName,
-    this.sellerAvatar, // 2. Daftarkan di constructor
+    this.sellerAvatar,
     required this.productName,
     required this.productPrice,
     required this.productImage,
@@ -49,6 +49,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   late final String _currentUserId;
 
   bool _isSending = false;
+  bool _isBuyer = false;
+  bool _isLoadingRole = true;
+
   XFile? _selectedImage;
 
   String? _otherUserId;
@@ -64,7 +67,34 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     _messagesStream = _chatService.watchMessages(widget.conversationId);
 
     _markMessagesAsRead();
+    _loadConversationRole();
     _loadOtherUserProfile();
+  }
+
+  Future<void> _loadConversationRole() async {
+    try {
+      final conversation = await Supabase.instance.client
+          .from('conversations')
+          .select('buyer_id')
+          .eq('id', widget.conversationId)
+          .maybeSingle();
+
+      if (!mounted) return;
+
+      setState(() {
+        _isBuyer = conversation?['buyer_id']?.toString() == _currentUserId;
+        _isLoadingRole = false;
+      });
+    } catch (e) {
+      debugPrint('ERROR LOAD CONVERSATION ROLE: $e');
+
+      if (!mounted) return;
+
+      setState(() {
+        _isBuyer = false;
+        _isLoadingRole = false;
+      });
+    }
   }
 
   Future<void> _markMessagesAsRead() async {
@@ -168,6 +198,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   }
 
   Future<void> _showSafeMeetingPointPicker() async {
+    if (!_isBuyer || _isLoadingRole) return;
+
     try {
       final locations = await _chatService.fetchSafeMeetingPoints();
 
@@ -204,6 +236,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   Future<void> _sendSafeMeetingPoints(
     List<SafeMeetingPointModel> locations,
   ) async {
+    if (!_isBuyer) return;
+
     try {
       await _chatService.sendSafeMeetingPoint(
         conversationId: widget.conversationId,
@@ -242,16 +276,14 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   void _showMoreOptions(String value) {
     if (value == 'profile') {
       if (_otherUserId == null || _otherUserId!.isEmpty) {
-        _showMessage('Profil penjual belum tersedia.');
+        _showMessage('Profil pengguna belum tersedia.');
         return;
       }
 
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => SellerProfileScreen(
-            sellerId: _otherUserId!,
-          ),
+          builder: (_) => SellerProfileScreen(sellerId: _otherUserId!),
         ),
       );
     }
@@ -266,9 +298,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
 
       final locations = rawLocations is List
           ? rawLocations
-              .whereType<Map>()
-              .map((location) => Map<String, dynamic>.from(location))
-              .toList()
+                .whereType<Map>()
+                .map((location) => Map<String, dynamic>.from(location))
+                .toList()
           : <Map<String, dynamic>>[];
 
       if (locations.isEmpty) {
@@ -276,6 +308,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
           message: item.message,
           time: time,
           isMe: isMe,
+          isRead: item.isRead,
         );
       }
 
@@ -291,6 +324,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         message: item.message,
         time: time,
         isMe: isMe,
+        isRead: item.isRead,
         imageUrl: item.metadata['image_url']?.toString(),
       );
     }
@@ -299,6 +333,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       message: item.message,
       time: time,
       isMe: isMe,
+      isRead: item.isRead,
     );
   }
 
@@ -315,21 +350,14 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   }
 
   String _formatTime(DateTime dateTime) {
-    final hour = dateTime.hour % 12 == 0 ? 12 : dateTime.hour % 12;
-    final minute = dateTime.minute.toString().padLeft(2, '0');
-    final period = dateTime.hour >= 12 ? 'PM' : 'AM';
-
-    return '$hour.$minute $period';
+    return DateFormat('HH:mm').format(dateTime.toLocal());
   }
 
   void _showMessage(String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          behavior: SnackBarBehavior.floating,
-        ),
+        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
       );
   }
 
@@ -378,9 +406,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                                   onPressed: () {
                                     setState(() {
                                       _messagesStream = _chatService
-                                          .watchMessages(
-                                        widget.conversationId,
-                                      );
+                                          .watchMessages(widget.conversationId);
                                     });
                                   },
                                   child: const Text('Coba lagi'),
@@ -439,9 +465,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                       },
                     ),
                   ),
-                  SafeMeetingPoint(
-                    onTap: _showSafeMeetingPointPicker,
-                  ),
+                  if (!_isLoadingRole && _isBuyer)
+                    SafeMeetingPoint(onTap: _showSafeMeetingPointPicker),
                 ],
               ),
             ),
