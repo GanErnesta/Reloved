@@ -150,7 +150,7 @@ class _SellerManageOrdersScreenState extends State<SellerManageOrdersScreen> {
             }
             // Navigasi default ke halaman Tambah Katalog / SellScreen
             Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const AddCatalogScreen()),
+              MaterialPageRoute(builder: (_) => AddCatalogScreen()),
             );
           },
           backgroundColor: AppColors.primary,
