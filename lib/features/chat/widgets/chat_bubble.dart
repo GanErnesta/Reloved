@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
@@ -9,6 +8,7 @@ class ChatBubble extends StatelessWidget {
   final String message;
   final String time;
   final bool isMe;
+  final bool isRead;
   final String? imageUrl;
 
   const ChatBubble({
@@ -16,6 +16,7 @@ class ChatBubble extends StatelessWidget {
     required this.message,
     required this.time,
     required this.isMe,
+    this.isRead = false,
     this.imageUrl,
   });
 
@@ -42,9 +43,7 @@ class ChatBubble extends StatelessWidget {
                       if (progress == null) return child;
 
                       return const Center(
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                        ),
+                        child: CircularProgressIndicator(color: Colors.white),
                       );
                     },
                     errorBuilder: (context, error, stackTrace) {
@@ -64,11 +63,7 @@ class ChatBubble extends StatelessWidget {
                   onPressed: () {
                     Navigator.pop(dialogContext);
                   },
-                  icon: const Icon(
-                    Icons.close,
-                    color: Colors.white,
-                    size: 30,
-                  ),
+                  icon: const Icon(Icons.close, color: Colors.white, size: 30),
                 ),
               ),
             ],
@@ -81,21 +76,21 @@ class ChatBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isImage = imageUrl != null && imageUrl!.isNotEmpty;
-    final hasCaption = message.trim().isNotEmpty &&
-        message.trim() != 'Foto lokasi';
+    final hasCaption =
+        message.trim().isNotEmpty && message.trim() != 'Foto lokasi';
 
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 285),
+        constraints: const BoxConstraints(maxWidth: 215),
         margin: EdgeInsets.only(
-          left: isMe ? 70 : 12,
+          left: isMe ? 70 : 10,
           right: isMe ? 12 : 70,
           bottom: 8,
         ),
         padding: const EdgeInsets.fromLTRB(8, 8, 8, 7),
         decoration: BoxDecoration(
-          color: isMe ? const Color(0xFFFCE4B8) : AppColors.surface,
+          color: isMe ? const Color(0xFFFCE4B8) : const Color(0xFFFFF1E8),
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(AppRadius.lg),
             topRight: const Radius.circular(AppRadius.lg),
@@ -183,7 +178,7 @@ class ChatBubble extends StatelessWidget {
               ),
             const SizedBox(height: 4),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 5),
+              padding: EdgeInsets.only(left: isMe ? 5 : 0, right: 5),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -196,9 +191,9 @@ class ChatBubble extends StatelessWidget {
                   ),
                   if (isMe) ...[
                     const SizedBox(width: 4),
-                    const Icon(
+                    Icon(
                       Icons.done_all,
-                      color: AppColors.primary,
+                      color: isRead ? AppColors.primary : Colors.grey,
                       size: 15,
                     ),
                   ],

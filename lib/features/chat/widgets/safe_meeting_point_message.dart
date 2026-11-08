@@ -39,7 +39,7 @@ class SafeMeetingPointMessage extends StatelessWidget {
           ),
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'Sistem Keamanan Reloved: Titik temu disepakati di:',
@@ -65,8 +65,7 @@ class SafeMeetingPointMessage extends StatelessWidget {
                           width: 220,
                           height: 110,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              _imagePlaceholder(),
+                          errorBuilder: (_, __, ___) => _imagePlaceholder(),
                         ),
                       )
                     else
@@ -91,11 +90,15 @@ class SafeMeetingPointMessage extends StatelessWidget {
                 ),
               );
             }),
-            Text(
-              time,
-              style: AppTextStyles.caption.copyWith(
-                fontSize: 10,
-                color: AppColors.textPrimary,
+            const SizedBox(height: 2),
+            Align(
+              alignment: Alignment.center,
+              child: Text(
+                time,
+                style: AppTextStyles.caption.copyWith(
+                  fontSize: 10,
+                  color: AppColors.textPrimary,
+                ),
               ),
             ),
           ],
