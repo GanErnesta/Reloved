@@ -18,8 +18,6 @@ import '../features/profile/screens/profile_recovery_screen.dart';
 import '../features/profile/screens/settings_screen.dart';
 import '../features/profile/screens/edit_profile_screen.dart';
 
-import '../features/chat/screens/chat_room_screen.dart';
-
 final router = GoRouter(
   initialLocation: '/',
 
@@ -91,27 +89,6 @@ final router = GoRouter(
     GoRoute(
       path: '/reset-password',
       builder: (_, __) => const ResetPasswordScreen(),
-    ),
-    GoRoute(
-      path: '/chat/:conversationId',
-      builder: (context, state) {
-        final extra = state.extra;
-
-        if (extra is! Map) {
-          throw Exception('Data percakapan tidak valid.');
-        }
-
-        final data = Map<String, dynamic>.from(extra);
-
-        return ChatRoomScreen(
-          conversationId: state.pathParameters['conversationId']!,
-          sellerName: data['sellerName']?.toString() ?? 'Pengguna Reloved',
-          sellerAvatar: data['sellerAvatar']?.toString(),
-          productName: data['productName']?.toString() ?? 'Produk',
-          productPrice: data['productPrice']?.toString() ?? '0',
-          productImage: data['productImage']?.toString() ?? '',
-        );
-      },
     ),
 
     /// Home
