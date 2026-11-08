@@ -11,23 +11,19 @@ import '../../cart/screens/checkout_screen.dart';
 import '../../cart/services/cart_service.dart';
 import '../../cart/widgets/transaction_confirmation_modal.dart';
 
+import '../../chat/screens/chat_room_screen.dart';
+import '../../chat/services/chat_service.dart';
+
 import '../models/product.dart';
 import '../services/product_service.dart';
-
-import '../../chat/services/chat_service.dart';
-import '../../chat/screens/chat_room_screen.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   final Product product;
 
-  const ProductDetailScreen({
-    super.key,
-    required this.product,
-  });
+  const ProductDetailScreen({super.key, required this.product});
 
   @override
-  State<ProductDetailScreen> createState() =>
-      _ProductDetailScreenState();
+  State<ProductDetailScreen> createState() => _ProductDetailScreenState();
 }
 
 class _ProductDetailScreenState extends State<ProductDetailScreen>
@@ -37,6 +33,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
   final ProductService _productService = ProductService();
 
   bool _isOpeningChat = false;
+  bool _isAddingToCart = false;
+  bool _isLoadingProduct = false;
+  bool _isBuyingNow = false;
 
   late Product _product;
   late AnimationController _cartAnimationController;
@@ -44,18 +43,32 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
   final GlobalKey _productImageKey = GlobalKey();
   final GlobalKey _cartButtonKey = GlobalKey();
 
-  bool _isAddingToCart = false;
-  bool _isLoadingProduct = false;
-  bool _isBuyingNow = false;
+  final PageController _imagePageController = PageController();
+
+  int _currentImageIndex = 0;
 
   Product get product => _product;
 
   bool get isOwnProduct {
-    final currentUser =
-        Supabase.instance.client.auth.currentUser;
+    final currentUser = Supabase.instance.client.auth.currentUser;
 
-    return currentUser != null &&
-        currentUser.id == product.sellerId;
+    return currentUser != null && currentUser.id == product.sellerId;
+  }
+
+  List<String> get productImages {
+    final images = <String>[];
+
+    if (product.imageUrl.isNotEmpty) {
+      images.add(product.imageUrl);
+    }
+
+    for (final image in product.imageUrls) {
+      if (image.isNotEmpty && !images.contains(image)) {
+        images.add(image);
+      }
+    }
+
+    return images;
   }
 
   @override
@@ -75,6 +88,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
   @override
   void dispose() {
     _cartAnimationController.dispose();
+    _imagePageController.dispose();
     super.dispose();
   }
 
@@ -89,23 +103,18 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     final sourceObject = sourceContext.findRenderObject();
     final targetObject = targetContext.findRenderObject();
 
-    if (sourceObject is! RenderBox ||
-        targetObject is! RenderBox) {
+    if (sourceObject is! RenderBox || targetObject is! RenderBox) {
       return;
     }
 
     if (!sourceObject.hasSize || !targetObject.hasSize) return;
 
-    final sourcePosition =
-    sourceObject.localToGlobal(Offset.zero);
-
-    final targetPosition =
-    targetObject.localToGlobal(Offset.zero);
+    final sourcePosition = sourceObject.localToGlobal(Offset.zero);
+    final targetPosition = targetObject.localToGlobal(Offset.zero);
 
     final startRect = sourcePosition & sourceObject.size;
 
-    final targetCenter =
-        targetPosition + targetObject.size.center(Offset.zero);
+    final targetCenter = targetPosition + targetObject.size.center(Offset.zero);
 
     final endRect = Rect.fromCenter(
       center: targetCenter,
@@ -119,17 +128,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
 
     entry = OverlayEntry(
       builder: (overlayContext) {
-        final progress =
-        Curves.easeInOutCubic.transform(
+        final progress = Curves.easeInOutCubic.transform(
           _cartAnimationController.value,
         );
 
-        final currentRect =
-        Rect.lerp(startRect, endRect, progress)!;
+        final currentRect = Rect.lerp(startRect, endRect, progress)!;
 
-        final opacity = (1 - (progress * 0.15))
-            .clamp(0.0, 1.0)
-            .toDouble();
+        final opacity = (1 - (progress * 0.15)).clamp(0.0, 1.0).toDouble();
 
         return Positioned.fromRect(
           rect: currentRect,
@@ -182,32 +187,38 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
 
   Future<void> _refreshProduct() async {
     try {
-      final latestProduct =
-      await _productService.getProductById(
+      final latestProduct = await _productService.getProductById(
         widget.product.id,
       );
+
+      debugPrint('========== PRODUCT IMAGE DEBUG ==========');
+      debugPrint('Product ID: ${latestProduct.id}');
+      debugPrint('Image URL: ${latestProduct.imageUrl}');
+      debugPrint('Image URLs: ${latestProduct.imageUrls}');
+      debugPrint('Total Images: ${latestProduct.imageUrls.length}');
+      debugPrint('==========================================');
 
       if (!mounted) return;
 
       setState(() {
         _product = latestProduct;
+        _currentImageIndex = 0;
       });
+
+      if (_imagePageController.hasClients) {
+        _imagePageController.jumpToPage(0);
+      }
     } catch (e) {
       debugPrint('ERROR REFRESH PRODUCT: $e');
     }
   }
 
-  Future<void> _saveCartSelection(
-      Map<String, dynamic> data,
-      ) async {
-    final transactionType =
-    data['transactionType'] as String;
-
+  Future<void> _saveCartSelection(Map<String, dynamic> data) async {
+    final transactionType = data['transactionType'] as String;
     final quantity = data['quantity'] as int;
 
     try {
-      final latestProduct =
-      await _productService.getProductById(product.id);
+      final latestProduct = await _productService.getProductById(product.id);
 
       if (!mounted) return;
 
@@ -222,9 +233,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
 
       if (quantity < latestProduct.minPurchase ||
           quantity > latestProduct.stock) {
-        _showMessage(
-          'Jumlah barang tidak sesuai dengan stok',
-        );
+        _showMessage('Jumlah barang tidak sesuai dengan stok');
         return;
       }
 
@@ -250,21 +259,15 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     } catch (e) {
       if (!mounted) return;
 
-      _showMessage(
-        'Gagal menambahkan produk ke keranjang',
-      );
+      _showMessage('Gagal menambahkan produk ke keranjang');
 
       debugPrint('ERROR SAVE CART: $e');
     }
   }
 
-  /// Dipanggil saat user menekan "Konfirmasi" di modal setelah menekan "Beli".
-  /// Langsung membawa user ke CheckoutScreen dengan qty (dan durasi sewa)
-  /// yang dipilih, tanpa melewati layar Keranjang.
   Future<void> _buyNow(Map<String, dynamic> data) async {
     if (_isBuyingNow) return;
 
-    // Hanya boleh ada satu sesi pembayaran yang menunggu.
     if (CartController.instance.hasPendingPayment) {
       _showMessage(
         'Selesaikan atau batalkan pembayaran sebelumnya terlebih dahulu',
@@ -280,8 +283,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     });
 
     try {
-      final latestProduct =
-      await _productService.getProductById(product.id);
+      final latestProduct = await _productService.getProductById(product.id);
 
       if (!mounted) return;
 
@@ -300,8 +302,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
         return;
       }
 
-      // Buat baris keranjang khusus untuk pembelian ini
-      // (dibutuhkan oleh fungsi checkout di database).
       final cartItem = await _cartService.createBuyNowItem(
         latestProduct.id,
         transactionType: transactionType,
@@ -321,10 +321,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
         ),
       );
 
-      // Kembali dari checkout. Jika pembayaran TIDAK dimulai (user menekan
-      // back), hapus baris sementara agar tidak tertinggal di keranjang.
-      // Jika pembayaran dimulai, baris itu sedang dipakai oleh sesi
-      // pembayaran, jadi jangan disentuh.
       if (!CartController.instance.hasPendingPayment) {
         try {
           await _cartService.deleteCartItem(cartItem.id);
@@ -348,8 +344,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
   }
 
   Future<void> _addToCart() async {
-    final user =
-        Supabase.instance.client.auth.currentUser;
+    final user = Supabase.instance.client.auth.currentUser;
 
     if (user == null) {
       _showMessage('Silakan login terlebih dahulu');
@@ -358,11 +353,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
 
     if (_isAddingToCart) return;
 
-    // Pengguna tidak bisa membeli produknya sendiri.
     if (isOwnProduct) {
-      _showMessage(
-        'Kamu tidak dapat membeli produk sendiri',
-      );
+      _showMessage('Kamu tidak dapat membeli produk sendiri');
       return;
     }
 
@@ -371,14 +363,18 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     });
 
     try {
-      final latestProduct =
-      await _productService.getProductById(product.id);
+      final latestProduct = await _productService.getProductById(product.id);
 
       if (!mounted) return;
 
       setState(() {
         _product = latestProduct;
       });
+
+      if (product.status != 'available') {
+        _showMessage('Produk sudah tidak tersedia');
+        return;
+      }
 
       if (product.stock <= 0) {
         _showMessage('Stok produk sedang habis');
@@ -398,9 +394,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
             initialMode: product.transactionType == 'rent'
                 ? TransactionMode.rent
                 : TransactionMode.sale,
-            onConfirm: (data) {
-              _saveCartSelection(data);
-            },
+            onConfirm: _saveCartSelection,
           );
         },
       );
@@ -422,8 +416,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
   Future<void> _openChat() async {
     if (_isOpeningChat || isOwnProduct) return;
 
-    final user =
-        Supabase.instance.client.auth.currentUser;
+    final user = Supabase.instance.client.auth.currentUser;
 
     if (user == null) {
       _showMessage('Silakan login terlebih dahulu');
@@ -431,9 +424,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     }
 
     if (user.id == product.sellerId) {
-      _showMessage(
-        'Kamu tidak dapat chat dengan akun sendiri',
-      );
+      _showMessage('Kamu tidak dapat chat dengan akun sendiri');
       return;
     }
 
@@ -442,8 +433,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     });
 
     try {
-      final conversation =
-      await _chatService.createOrGetConversation(
+      final conversation = await _chatService.createOrGetConversation(
         sellerId: product.sellerId,
         productId: product.id,
       );
@@ -490,8 +480,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
   }
 
   Future<void> _showTransactionModal() async {
-    final user =
-        Supabase.instance.client.auth.currentUser;
+    final user = Supabase.instance.client.auth.currentUser;
 
     if (user == null) {
       _showMessage('Silakan login terlebih dahulu');
@@ -499,9 +488,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     }
 
     if (isOwnProduct) {
-      _showMessage(
-        'Kamu tidak dapat membeli produk sendiri',
-      );
+      _showMessage('Kamu tidak dapat membeli produk sendiri');
       return;
     }
 
@@ -512,8 +499,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     });
 
     try {
-      final latestProduct =
-      await _productService.getProductById(
+      final latestProduct = await _productService.getProductById(
         widget.product.id,
       );
 
@@ -523,19 +509,19 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
         _product = latestProduct;
       });
 
+      if (product.status != 'available') {
+        _showMessage('Produk sudah tidak tersedia');
+        return;
+      }
+
       if (product.stock <= 0) {
-        _showMessage(
-          'Maaf, stok produk sedang habis',
-        );
+        _showMessage('Maaf, stok produk sedang habis');
         return;
       }
 
       if (product.transactionType == 'rent' &&
-          (product.rentalPrice == null ||
-              product.rentalPrice! <= 0)) {
-        _showMessage(
-          'Harga sewa produk belum tersedia',
-        );
+          (product.rentalPrice == null || product.rentalPrice! <= 0)) {
+        _showMessage('Harga sewa produk belum tersedia');
         return;
       }
 
@@ -553,7 +539,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                 ? TransactionMode.rent
                 : TransactionMode.sale,
             onConfirm: (data) {
-              // Langsung menuju checkout dengan qty yang dipilih.
               _buyNow(data);
             },
           );
@@ -561,9 +546,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
       );
     } catch (e) {
       if (mounted) {
-        _showMessage(
-          'Gagal mengambil data produk terbaru',
-        );
+        _showMessage('Gagal mengambil data produk terbaru');
       }
 
       debugPrint('ERROR SHOW TRANSACTION: $e');
@@ -586,9 +569,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
             _buildHeader(context),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.only(
-                  bottom: AppSpacing.lg,
-                ),
+                padding: const EdgeInsets.only(bottom: AppSpacing.lg),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -608,21 +589,112 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     );
   }
 
+  Widget _buildProductImage() {
+    final images = productImages;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      child: Column(
+        children: [
+          Container(
+            key: _productImageKey,
+            width: double.infinity,
+            height: 455,
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(color: AppColors.border),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 3,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              child: images.isEmpty
+                  ? Container(
+                      color: AppColors.background,
+                      child: const Icon(
+                        Icons.image_outlined,
+                        size: 48,
+                        color: AppColors.textSecondary,
+                      ),
+                    )
+                  : PageView.builder(
+                      controller: _imagePageController,
+                      itemCount: images.length,
+                      onPageChanged: (index) {
+                        setState(() {
+                          _currentImageIndex = index;
+                        });
+                      },
+                      itemBuilder: (context, index) {
+                        return Image.network(
+                          images[index],
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) {
+                            return Container(
+                              color: AppColors.background,
+                              alignment: Alignment.center,
+                              child: const Icon(
+                                Icons.broken_image_outlined,
+                                size: 48,
+                                color: AppColors.textSecondary,
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+            ),
+          ),
+          if (images.length > 1) ...[
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(images.length, (index) {
+                final isActive = _currentImageIndex == index;
+
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  width: isActive ? 20 : 7,
+                  height: 7,
+                  decoration: BoxDecoration(
+                    color: isActive ? AppColors.primary : AppColors.border,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                );
+              }),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '${_currentImageIndex + 1}/${images.length}',
+              style: AppTextStyles.caption.copyWith(
+                fontSize: 11,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildBottomActionBar() {
     final bool isBuyBusy = _isLoadingProduct || _isBuyingNow;
 
     return SafeArea(
       top: false,
       child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 12,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(18),
-          ),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.10),
@@ -633,20 +705,16 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
         ),
         child: Row(
           children: [
-            // Tombol chat hanya untuk produk orang lain.
             if (!isOwnProduct) ...[
               SizedBox(
                 width: 42,
                 height: 42,
                 child: OutlinedButton(
-                  onPressed:
-                  _isOpeningChat ? null : _openChat,
+                  onPressed: _isOpeningChat ? null : _openChat,
                   style: OutlinedButton.styleFrom(
                     padding: EdgeInsets.zero,
                     backgroundColor: const Color(0xFFF4E5E7),
-                    side: const BorderSide(
-                      color: AppColors.primary,
-                    ),
+                    side: const BorderSide(color: AppColors.primary),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -660,7 +728,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
               ),
               const SizedBox(width: 8),
             ],
-
             Expanded(
               child: SizedBox(
                 key: _cartButtonKey,
@@ -671,35 +738,29 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                       : _addToCart,
                   style: OutlinedButton.styleFrom(
                     backgroundColor: const Color(0xFFE8B7BE),
-                    side: const BorderSide(
-                      color: AppColors.primary,
-                    ),
+                    side: const BorderSide(color: AppColors.primary),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
                   child: _isAddingToCart
                       ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                    ),
-                  )
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
                       : Text(
-                    '+ Keranjang',
-                    style: AppTextStyles.bodyMedium.copyWith(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 12,
-                    ),
-                  ),
+                          '+ Keranjang',
+                          style: AppTextStyles.bodyMedium.copyWith(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                          ),
+                        ),
                 ),
               ),
             ),
-
             const SizedBox(width: 8),
-
             Expanded(
               child: SizedBox(
                 height: 42,
@@ -709,8 +770,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                       : _showTransactionModal,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
-                    disabledBackgroundColor:
-                    AppColors.primary.withValues(alpha: 0.6),
+                    disabledBackgroundColor: AppColors.primary.withValues(
+                      alpha: 0.6,
+                    ),
                     elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
@@ -718,21 +780,21 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                   ),
                   child: isBuyBusy
                       ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
                       : Text(
-                    'Beli',
-                    style: AppTextStyles.bodyMedium.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 12,
-                    ),
-                  ),
+                          'Beli',
+                          style: AppTextStyles.bodyMedium.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                          ),
+                        ),
                 ),
               ),
             ),
@@ -748,9 +810,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
       child: Align(
         alignment: Alignment.centerLeft,
         child: Padding(
-          padding: const EdgeInsets.only(
-            left: AppSpacing.md,
-          ),
+          padding: const EdgeInsets.only(left: AppSpacing.md),
           child: GestureDetector(
             onTap: () => Navigator.pop(context),
             child: const Icon(
@@ -764,56 +824,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     );
   }
 
-  Widget _buildProductImage() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-      ),
-      child: Container(
-        key: _productImageKey,
-        width: double.infinity,
-        height: 455,
-        padding: const EdgeInsets.all(26),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          border: Border.all(
-            color: AppColors.border,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 3,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(7),
-          child: Image.network(
-            product.imageUrl,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) {
-              return Container(
-                color: AppColors.background,
-                child: const Icon(
-                  Icons.image_outlined,
-                  size: 48,
-                  color: AppColors.textSecondary,
-                ),
-              );
-            },
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildProductInfo() {
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -824,9 +837,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
               fontWeight: FontWeight.w700,
             ),
           ),
-
           const SizedBox(height: 12),
-
           Text(
             formatPrice(product.price),
             style: AppTextStyles.heading.copyWith(
@@ -835,33 +846,19 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
               fontWeight: FontWeight.w500,
             ),
           ),
-
           const SizedBox(height: 10),
-
           Row(
             children: [
-              _buildTag(
-                'Kondisi: ${product.condition}',
-              ),
+              _buildTag('Kondisi: ${product.condition}'),
               const SizedBox(width: 6),
-              Flexible(
-                child: _buildTag(
-                  'Kategori: ${product.categoryName}',
-                ),
-              ),
+              Flexible(child: _buildTag('Kategori: ${product.categoryName}')),
             ],
           ),
-
           const SizedBox(height: 12),
-
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(
-                Icons.location_on,
-                color: AppColors.primary,
-                size: 17,
-              ),
+              const Icon(Icons.location_on, color: AppColors.primary, size: 17),
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
@@ -874,9 +871,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
               ),
             ],
           ),
-
           const SizedBox(height: 12),
-
           Text(
             product.description.isEmpty
                 ? 'Belum ada deskripsi produk.'
@@ -894,10 +889,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
 
   Widget _buildTag(String text) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 8,
-        vertical: 5,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
         color: AppColors.textSecondary.withValues(alpha: 0.55),
         borderRadius: BorderRadius.circular(AppRadius.lg),
@@ -914,21 +906,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
 
   Widget _buildSellerCard() {
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
       child: Container(
         height: 64,
-        padding: const EdgeInsets.symmetric(
-          horizontal: 8,
-          vertical: 8,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(AppRadius.md),
-          border: Border.all(
-            color: AppColors.border,
-          ),
+          border: Border.all(color: AppColors.border),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.08),
@@ -952,9 +937,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                 size: 25,
               ),
             ),
-
             const SizedBox(width: 12),
-
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -966,13 +949,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                         : product.sellerName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.bodyMedium.copyWith(
-                      fontSize: 13,
-                    ),
+                    style: AppTextStyles.bodyMedium.copyWith(fontSize: 13),
                   ),
-
                   const SizedBox(height: 2),
-
                   Text(
                     product.sellerFaculty.isEmpty
                         ? product.sellerCampus
@@ -987,24 +966,17 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                 ],
               ),
             ),
-
-            // Tombol chat hanya muncul jika bukan pemilik produk.
             if (!isOwnProduct)
               SizedBox(
                 width: 76,
                 height: 32,
                 child: OutlinedButton(
-                  onPressed:
-                  _isOpeningChat ? null : _openChat,
+                  onPressed: _isOpeningChat ? null : _openChat,
                   style: OutlinedButton.styleFrom(
                     padding: EdgeInsets.zero,
-                    side: const BorderSide(
-                      color: AppColors.primary,
-                    ),
+                    side: const BorderSide(color: AppColors.primary),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(
-                        AppRadius.md,
-                      ),
+                      borderRadius: BorderRadius.circular(AppRadius.md),
                     ),
                   ),
                   child: Text(
@@ -1029,7 +1001,7 @@ String formatPrice(double price) {
 
   final formatted = value.replaceAllMapped(
     RegExp(r'\B(?=(\d{3})+(?!\d))'),
-        (match) => '.',
+    (match) => '.',
   );
 
   return 'Rp $formatted';
