@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/widgets/smart_image.dart';
 
 class StackedProductImage extends StatelessWidget {
   final String imagePath;
@@ -43,7 +44,7 @@ class StackedProductImage extends StatelessWidget {
                     borderRadius: BorderRadius.circular(11),
                     child: Opacity(
                       opacity: 0.65,
-                      child: _buildImage(),
+                      child: _buildImage(size - 8),
                     ),
                   ),
                 ),
@@ -64,7 +65,7 @@ class StackedProductImage extends StatelessWidget {
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(11),
-              child: _buildImage(),
+              child: _buildImage(size),
             ),
           ),
         ],
@@ -72,21 +73,15 @@ class StackedProductImage extends StatelessWidget {
     );
   }
 
-  Widget _buildImage() {
-    return Image.asset(
-      imagePath,
+  Widget _buildImage(double boxSize) {
+    // SmartImage otomatis memilih Image.network / Image.asset dan
+    // menampilkan placeholder jika gambar kosong atau gagal dimuat.
+    return SmartImage(
+      source: imagePath,
+      width: boxSize,
+      height: boxSize,
       fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) {
-        // Fallback placeholder jika asset belum dimasukkan
-        return Container(
-          color: const Color(0xFFF5F5F5),
-          child: const Icon(
-            Icons.checkroom_rounded,
-            color: AppColors.textSecondary,
-            size: 32,
-          ),
-        );
-      },
+      placeholderIcon: Icons.checkroom_rounded,
     );
   }
 }

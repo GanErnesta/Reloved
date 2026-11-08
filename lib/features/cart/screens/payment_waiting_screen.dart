@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../../app/navigation/main_screen.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../orders/screens/orders_screen.dart';
 import '../controllers/cart_controller.dart';
 import '../widgets/payment_dialogs.dart';
 
@@ -16,14 +18,22 @@ class _PaymentWaitingScreenState extends State<PaymentWaitingScreen> {
   final CartController _cartController = CartController.instance;
   Timer? _countdownTimer;
   Duration _remaining = Duration.zero;
+  bool _isCheckingPayment = false;
 
   @override
   void initState() {
     super.initState();
+    _cartController.addListener(_onCartChanged);
     _syncRemainingTime();
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       _syncRemainingTime();
     });
+  }
+
+  void _onCartChanged() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   void _syncRemainingTime() {
@@ -52,11 +62,32 @@ class _PaymentWaitingScreenState extends State<PaymentWaitingScreen> {
     }
   }
 
+  Future<void> _openMidtransPage(String urlString) async {
+    final uri = Uri.tryParse(urlString);
+    if (uri == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('URL pembayaran tidak valid.')),
+      );
+      return;
+    }
+
+    final launched = await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
+
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Gagal membuka browser. Silakan salin link pembayaran.'),
+        ),
+      );
+    }
+  }
+
   String _formatDuration(Duration d) {
-    final minutes =
-    d.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final seconds =
-    d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    final minutes = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = d.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '$minutes : $seconds';
   }
 
@@ -70,6 +101,7 @@ class _PaymentWaitingScreenState extends State<PaymentWaitingScreen> {
 
   @override
   void dispose() {
+    _cartController.removeListener(_onCartChanged);
     _countdownTimer?.cancel();
     super.dispose();
   }
@@ -82,8 +114,11 @@ class _PaymentWaitingScreenState extends State<PaymentWaitingScreen> {
     }
 
     final bool isQris = session.paymentMethod.toUpperCase() == 'QRIS';
+    final String? snapUrl = session.qrisString;
+    final bool hasSnapUrl = snapUrl != null && snapUrl.startsWith('http');
+    final bool isSyncing = session.sessionId == 'PENDING-SYNC' &&
+        _cartController.lastErrorMessage == null;
 
-    // PopScope canPop: false agar user tertahan (stuck) di halaman ini sampai bayar / batalkan
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -193,12 +228,35 @@ class _PaymentWaitingScreenState extends State<PaymentWaitingScreen> {
                         ),
                       ],
                     ),
+                    if (session.midtransOrderId != null) ...[
+                      const SizedBox(height: 14),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Order ID Midtrans',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                          Text(
+                            session.midtransOrderId!,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
               const SizedBox(height: 20),
 
-              // 2. Kartu QRIS / Instruksi Pembayaran Midtrans
+              // 2. Kartu Instruksi Pembayaran Midtrans
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(24),
@@ -206,58 +264,19 @@ class _PaymentWaitingScreenState extends State<PaymentWaitingScreen> {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(18),
                 ),
-                child: isQris
-                    ? Column(
+                child: Column(
                   children: [
-                    const Text(
-                      'QRIS',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1.5,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const Text(
-                      'QR Code Standar Pembayaran Nasional',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Image.asset(
-                      'assets/images/qris_sample.png',
-                      width: 220,
-                      height: 220,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => const Icon(
-                        Icons.qr_code_2_rounded,
-                        size: 220,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                  ],
-                )
-                    : Column(
-                  children: [
-                    const Icon(
-                      Icons.account_balance_wallet_outlined,
-                      size: 64,
-                      color: AppColors.primary,
-                    ),
-                    const SizedBox(height: 12),
                     Text(
-                      'Menunggu Pembayaran ${session.paymentMethod}',
+                      isQris ? 'QRIS' : session.paymentMethod,
                       style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
                         color: AppColors.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 6),
                     const Text(
-                      'Silakan selesaikan pembayaran pada aplikasi e-Wallet Anda, kemudian tekan tombol Konfirmasi Pembayaran di bawah.',
+                      'klik untuk mendapatkan kode.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 12,
@@ -265,6 +284,92 @@ class _PaymentWaitingScreenState extends State<PaymentWaitingScreen> {
                         height: 1.4,
                       ),
                     ),
+                    const SizedBox(height: 18),
+                    if (isSyncing) ...[
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: CircularProgressIndicator(),
+                      ),
+                      const Text(
+                        'Menghubungi server Midtrans...',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ] else if (hasSnapUrl) ...[
+                      if (isQris)
+                        Image.asset(
+                          'assets/images/qris_sample.png',
+                          width: 180,
+                          height: 180,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, __, ___) => const Icon(
+                            Icons.qr_code_2_rounded,
+                            size: 180,
+                            color: AppColors.textPrimary,
+                          ),
+                        )
+                      else
+                        const Icon(
+                          Icons.account_balance_wallet_outlined,
+                          size: 72,
+                          color: AppColors.primary,
+                        ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 46,
+                        child: ElevatedButton.icon(
+                          onPressed: () => _openMidtransPage(snapUrl),
+                          icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                          label: const Text(
+                            'Buka Halaman Pembayaran Midtrans',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextButton.icon(
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: snapUrl));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Link pembayaran Midtrans disalin!'),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.copy_rounded, size: 16),
+                        label: const Text('Salin Link Pembayaran'),
+                      ),
+                    ] else ...[
+                      const Icon(
+                        Icons.error_outline_rounded,
+                        size: 56,
+                        color: Colors.redAccent,
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        _cartController.lastErrorMessage ??
+                            'Gagal memuat link Midtrans. Pastikan MIDTRANS_SERVER_KEY di file .env sudah benar.',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.redAccent,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -312,24 +417,44 @@ class _PaymentWaitingScreenState extends State<PaymentWaitingScreen> {
                   const SizedBox(height: 10),
                 ],
 
-                // Tombol Konfirmasi Pembayaran (Refresh status Midtrans)
+                // Tombol Konfirmasi Pembayaran (Mengecek status settlement ke Midtrans)
                 SizedBox(
                   width: double.infinity,
                   height: 46,
                   child: OutlinedButton(
-                    onPressed: () async {
+                    onPressed: _isCheckingPayment
+                        ? null
+                        : () async {
+                      setState(() {
+                        _isCheckingPayment = true;
+                      });
                       final success =
                       await _cartController.confirmPaymentSuccess();
+                      if (!mounted) return;
+                      setState(() {
+                        _isCheckingPayment = false;
+                      });
+
                       if (success && context.mounted) {
                         _countdownTimer?.cancel();
-                        await PaymentDialogs.showPaymentSuccessDialog(context);
+                        await PaymentDialogs.showPaymentSuccessDialog(
+                          context,
+                        );
                         if (context.mounted) {
-                          Navigator.of(context).pushReplacement(
-                            MaterialPageRoute(
-                              builder: (_) => const OrdersScreen(),
-                            ),
+                          MainScreen.goToTab(
+                            context,
+                            MainScreen.ordersTab,
                           );
                         }
+                      } else if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              _cartController.lastErrorMessage ??
+                                  'Pembayaran belum terverifikasi lunas.',
+                            ),
+                          ),
+                        );
                       }
                     },
                     style: OutlinedButton.styleFrom(
@@ -342,7 +467,13 @@ class _PaymentWaitingScreenState extends State<PaymentWaitingScreen> {
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    child: const Text(
+                    child: _isCheckingPayment
+                        ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                        : const Text(
                       'Konfirmasi Pembayaran',
                       style: TextStyle(
                         fontSize: 15,

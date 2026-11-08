@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/config/supabase_config.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../orders/models/order_model.dart';
 import '../../orders/models/safe_meeting_point_model.dart';
@@ -24,11 +25,52 @@ class CheckoutScreen extends StatefulWidget {
 }
 
 class _CheckoutScreenState extends State<CheckoutScreen> {
-  SafeMeetingPointModel _selectedMeetingPoint =
-      SafeMeetingPointModel.campusPoints.first;
+  late SafeMeetingPointModel _selectedMeetingPoint;
 
   // Default kosong (belum ada metode pembayaran yang dipilih)
   String? _selectedPaymentMethod;
+
+  // Info akun pembeli yang sedang login (bukan lagi teks tetap)
+  String _buyerAccountInfo = '-';
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Pakai daftar titik temu dari database (sudah dimuat CartController).
+    // Daftar bawaan hanya dipakai jika database kosong.
+    final points = CartController.instance.meetingPoints;
+    _selectedMeetingPoint =
+    points.isNotEmpty ? points.first : SafeMeetingPointModel.campusPoints.first;
+
+    _buyerAccountInfo = SupabaseConfig.client.auth.currentUser?.email ?? '-';
+    _loadBuyerName();
+  }
+
+  Future<void> _loadBuyerName() async {
+    final user = SupabaseConfig.client.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      final profile = await SupabaseConfig.client
+          .from('profiles')
+          .select('nama, email')
+          .eq('id', user.id)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 15));
+
+      if (!mounted || profile == null) return;
+
+      final name = (profile['nama'] ?? '').toString().trim();
+      final email = (profile['email'] ?? user.email ?? '').toString().trim();
+
+      setState(() {
+        _buyerAccountInfo = name.isNotEmpty ? '$name - $email' : email;
+      });
+    } catch (e) {
+      debugPrint('[CheckoutScreen] gagal memuat profil pembeli: $e');
+    }
+  }
 
   int get _productSubtotal =>
       widget.selectedItems.fold(0, (sum, item) => sum + item.subtotalPrice);
@@ -86,13 +128,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             OrderLocationCard(
               pickupAddress: widget.selectedItems.first.sellerPickupAddress,
               safeMeetingPoint: _selectedMeetingPoint,
-              buyerAccountInfo:
-              'falishakeyrani - falishakeyrani@student.ub.ac.id',
+              buyerAccountInfo: _buyerAccountInfo,
               canEditMeetingPoint: true,
               onTapMeetingPoint: () async {
                 final picked = await SafeMeetingPointSheet.show(
                   context,
                   currentSelection: _selectedMeetingPoint,
+                  points: CartController.instance.meetingPoints,
                 );
                 if (picked != null) {
                   setState(() {

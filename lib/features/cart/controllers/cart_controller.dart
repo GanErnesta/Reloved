@@ -3,85 +3,93 @@ import '../../orders/controllers/order_controller.dart';
 import '../../orders/models/order_model.dart';
 import '../../orders/models/safe_meeting_point_model.dart';
 import '../models/cart_model.dart';
+import '../repositories/cart_repository.dart';
 
 class CartController extends ChangeNotifier {
   static final CartController instance = CartController._internal();
   factory CartController() => instance;
-  CartController._internal();
 
-  // Sesi pembayaran aktif yang menahan user di layar Pembayaran (Stuck Screen)
+  CartController._internal() {
+    loadCartFromSupabase();
+  }
+
+  final CartRepository _repository = CartRepository();
+
   PendingPaymentSession? _activePaymentSession;
   PendingPaymentSession? get activePaymentSession => _activePaymentSession;
 
-  bool get hasPendingPayment {
-    if (_activePaymentSession == null) return false;
-    return true;
-  }
+  bool get hasPendingPayment => _activePaymentSession != null;
 
-  // Daftar item di keranjang
-  final List<CartItemModel> _items = [
-    CartItemModel(
-      id: 'CART-1',
-      productId: 'PRD-101',
-      shopId: 'SHOP-MIKKO',
-      shopName: 'Mikkoo32_',
-      sellerCity: 'Malang',
-      sellerPickupAddress:
-      'Area Ketawanggede, Kecamatan Lowokwaru, Kota Malang, Provinsi Jawa Timur.',
-      type: OrderType.beli,
-      productName: 'Classic Denim Jacket',
-      imagePath: 'assets/images/denim_jacket.png',
-      subtitleInfo: 'Ukuran M · Kondisi sangat baik',
-      unitPrice: 70000,
-      addedAt: DateTime.now().subtract(const Duration(minutes: 5)),
-      quantity: 1,
-    ),
-    CartItemModel(
-      id: 'CART-2',
-      productId: 'PRD-102',
-      shopId: 'SHOP-MIKKO',
-      shopName: 'Mikkoo32_',
-      sellerCity: 'Malang',
-      sellerPickupAddress:
-      'Area Ketawanggede, Kecamatan Lowokwaru, Kota Malang, Provinsi Jawa Timur.',
-      type: OrderType.sewa,
-      productName: 'Vintage Brown Loafers',
-      imagePath: 'assets/images/brown_loafers.png',
-      subtitleInfo: 'Ukuran 43 · Mulai 30 Okt',
-      unitPrice: 30000,
-      addedAt: DateTime.now().subtract(const Duration(minutes: 15)),
-      selectedRentalDays: 3,
-      rentalStartDate: DateTime(2025, 10, 30),
-      refundableDeposit: 100000,
-    ),
-    CartItemModel(
-      id: 'CART-3',
-      productId: 'PRD-103',
-      shopId: 'SHOP-NONA',
-      shopName: 'Nona Studio',
-      sellerCity: 'Jakarta Selatan',
-      sellerPickupAddress:
-      'Jl. Soekarno Hatta, Kec. Lowokwaru, Kota Malang, Provinsi Jawa Timur.',
-      type: OrderType.sewa,
-      productName: 'Vintage Brown Loafers',
-      imagePath: 'assets/images/brown_loafers.png',
-      subtitleInfo: 'Ukuran 38 · Mulai 12 Jun',
-      unitPrice: 30000,
-      addedAt: DateTime.now().subtract(const Duration(minutes: 30)),
-      selectedRentalDays: 3,
-      rentalStartDate: DateTime(2025, 6, 12),
-      refundableDeposit: 100000,
-    ),
-  ];
+  bool _isLoading = false;
+  bool get isLoading => _isLoading;
 
-  /// Menambahkan barang baru ke paling atas keranjang (seperti Shopee/e-commerce)
-  void addItemToCart(CartItemModel newItem) {
-    _items.insert(0, newItem);
+  String? _lastErrorMessage;
+  String? get lastErrorMessage => _lastErrorMessage;
+
+  List<CartItemModel> _items = [];
+  List<SafeMeetingPointModel> _meetingPoints =
+      SafeMeetingPointModel.campusPoints;
+  List<SafeMeetingPointModel> get meetingPoints => _meetingPoints;
+
+  Future<void> loadCartFromSupabase() async {
+    _isLoading = true;
     notifyListeners();
+
+    try {
+      final dbPoints = await _repository.fetchSafeMeetingPoints();
+      if (dbPoints.isNotEmpty) {
+        _meetingPoints = dbPoints;
+      }
+    } catch (e) {
+      debugPrint('Info fetchSafeMeetingPoints: $e');
+    }
+
+    try {
+      final pendingMap = await _repository.fetchActivePaymentSession();
+      if (pendingMap != null) {
+        final expiresAt =
+            DateTime.tryParse(pendingMap['expires_at'].toString())?.toLocal() ??
+                DateTime.now().add(const Duration(minutes: 30));
+
+        if (DateTime.now().isAfter(expiresAt)) {
+          await _repository.cancelOrExpireSession(pendingMap['id'].toString());
+          _activePaymentSession = null;
+        } else {
+          final smpData =
+          pendingMap['safe_meeting_points'] as Map<String, dynamic>?;
+          _activePaymentSession = PendingPaymentSession(
+            sessionId: pendingMap['id'].toString(),
+            checkedOutItems: const [],
+            safeMeetingPoint: smpData != null
+                ? SafeMeetingPointModel.fromMap(smpData)
+                : _meetingPoints.first,
+            pickupAddress: 'Area Ketawanggede, Malang',
+            buyerAccountInfo: 'Mahasiswa UB',
+            paymentMethod: (pendingMap['payment_method'] ?? 'QRIS').toString(),
+            productSubtotal:
+            ((pendingMap['product_subtotal'] ?? 0) as num).toInt(),
+            shippingFee: ((pendingMap['shipping_fee'] ?? 5000) as num).toInt(),
+            discount: ((pendingMap['discount'] ?? 0) as num).toInt(),
+            expiresAt: expiresAt,
+            midtransOrderId: pendingMap['midtrans_order_id']?.toString(),
+            qrisString: pendingMap['qris_string']?.toString(),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Info fetchActivePaymentSession: $e');
+    }
+
+    try {
+      _items = await _repository.fetchCartItems();
+    } catch (e) {
+      debugPrint('Error fetchCartItems: $e');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
-  /// Mengambil daftar item berdasarkan tab (null = Semua, OrderType.beli, OrderType.sewa)
-  /// Diurutkan berdasarkan waktu ditambahkan terbaru di paling atas
   List<CartItemModel> getFilteredItems(OrderType? filterType) {
     final filtered = filterType == null
         ? List<CartItemModel>.from(_items)
@@ -91,7 +99,6 @@ class CartController extends ChangeNotifier {
     return filtered;
   }
 
-  /// Mengelompokkan item per toko dengan mempertahankan urutan barang terbaru di paling atas
   List<CartShopGroup> getShopGroups(OrderType? filterType) {
     final filteredItems = getFilteredItems(filterType);
     final Map<String, List<CartItemModel>> grouped = {};
@@ -125,16 +132,17 @@ class CartController extends ChangeNotifier {
     final list = getFilteredItems(filterType);
     for (final item in list) {
       item.isSelected = value;
+      _repository.updateCartItem(item.id, isSelected: value);
     }
     notifyListeners();
   }
 
-  void toggleShopSelection(
-      String shopId, OrderType? filterType, bool value) {
-    final list = getFilteredItems(filterType)
-        .where((item) => item.shopId == shopId);
+  void toggleShopSelection(String shopId, OrderType? filterType, bool value) {
+    final list =
+    getFilteredItems(filterType).where((item) => item.shopId == shopId);
     for (final item in list) {
       item.isSelected = value;
+      _repository.updateCartItem(item.id, isSelected: value);
     }
     notifyListeners();
   }
@@ -144,6 +152,7 @@ class CartController extends ChangeNotifier {
     if (index != -1) {
       _items[index].isSelected = value;
       notifyListeners();
+      _repository.updateCartItem(itemId, isSelected: value);
     }
   }
 
@@ -154,6 +163,7 @@ class CartController extends ChangeNotifier {
       if (newQty >= 1 && newQty <= _items[index].availableStock) {
         _items[index].quantity = newQty;
         notifyListeners();
+        _repository.updateCartItem(itemId, quantity: newQty);
       }
     }
   }
@@ -163,12 +173,18 @@ class CartController extends ChangeNotifier {
     if (index != -1) {
       _items[index].selectedRentalDays = days;
       notifyListeners();
+      _repository.updateCartItem(itemId, rentalDuration: days);
     }
   }
 
-  void removeItem(String itemId) {
+  Future<void> removeItem(String itemId) async {
     _items.removeWhere((i) => i.id == itemId);
     notifyListeners();
+    try {
+      await _repository.deleteCartItem(itemId);
+    } catch (e) {
+      debugPrint('Error removeItem: $e');
+    }
   }
 
   List<CartItemModel> getSelectedItems(OrderType? filterType) {
@@ -184,11 +200,6 @@ class CartController extends ChangeNotifier {
     return getSelectedItems(filterType).length;
   }
 
-  // ===========================================================================
-  // MEKANISME PEMBAYARAN TERTAHAN (STUCK PAYMENT SESSION) & MIDTRANS / SUPABASE
-  // ===========================================================================
-
-  /// Memulai sesi pembayaran (Stuck selama 30 menit hingga bayar / batal / expired)
   PendingPaymentSession startPaymentSession({
     required List<CartItemModel> itemsToCheckout,
     required SafeMeetingPointModel safeMeetingPoint,
@@ -197,135 +208,124 @@ class CartController extends ChangeNotifier {
     int discount = 0,
     Duration timeoutDuration = const Duration(minutes: 30),
   }) {
+    _lastErrorMessage = null;
     final subtotal =
     itemsToCheckout.fold(0, (sum, item) => sum + item.subtotalPrice);
 
-    // Mengeluarkan sementara barang dari keranjang aktif (akan dikembalikan jika batal/expired)
     final ids = itemsToCheckout.map((e) => e.id).toSet();
     _items.removeWhere((item) => ids.contains(item.id));
 
     _activePaymentSession = PendingPaymentSession(
-      sessionId: 'PAY-${DateTime.now().millisecondsSinceEpoch}',
+      sessionId: 'PENDING-SYNC',
       checkedOutItems: itemsToCheckout,
       safeMeetingPoint: safeMeetingPoint,
       pickupAddress: itemsToCheckout.first.sellerPickupAddress,
-      buyerAccountInfo: 'falishakeyrani - falishakeyrani@student.ub.ac.id',
+      buyerAccountInfo: 'Mahasiswa UB',
       paymentMethod: paymentMethod,
       productSubtotal: subtotal,
       shippingFee: shippingFee,
       discount: discount,
       expiresAt: DateTime.now().add(timeoutDuration),
-      midtransOrderId: 'MID-${DateTime.now().millisecondsSinceEpoch}',
+    );
+    notifyListeners();
+
+    _syncStartSessionToSupabase(
+      itemsToCheckout: itemsToCheckout,
+      safeMeetingPoint: safeMeetingPoint,
+      paymentMethod: paymentMethod,
+      subtotal: subtotal,
+      shippingFee: shippingFee,
+      discount: discount,
+      timeoutDuration: timeoutDuration,
     );
 
-    notifyListeners();
     return _activePaymentSession!;
   }
 
-  /// Dipanggil saat waktu habis (30 menit) atau user membatalkan pembayaran:
-  /// Sesi dihapus seolah pesanan tidak pernah ada & barang/stok kembali ke keranjang.
-  Future<void> cancelOrExpirePaymentSession() async {
-    if (_activePaymentSession == null) return;
+  Future<void> _syncStartSessionToSupabase({
+    required List<CartItemModel> itemsToCheckout,
+    required SafeMeetingPointModel safeMeetingPoint,
+    required String paymentMethod,
+    required int subtotal,
+    required int shippingFee,
+    required int discount,
+    required Duration timeoutDuration,
+  }) async {
+    try {
+      String smpId = safeMeetingPoint.id;
+      if (smpId.startsWith('SMP-')) {
+        final dbPoints = await _repository.fetchSafeMeetingPoints();
+        if (dbPoints.isNotEmpty) {
+          smpId = dbPoints.first.id;
+        }
+      }
 
-    // TODO: Panggil API Supabase & Midtrans cancel transaction + restore product stock
-    final restoredItems = _activePaymentSession!.checkedOutItems;
-    for (final item in restoredItems.reversed) {
-      _items.insert(0, item);
+      final Map<String, dynamic> result =
+      await _repository.startCheckoutSession(
+        safeMeetingPointId: smpId,
+        paymentMethod: paymentMethod,
+        cartItemIds: itemsToCheckout.map((e) => e.id).toList(),
+      );
+
+      _activePaymentSession = PendingPaymentSession(
+        sessionId: result['sessionId']?.toString() ?? 'PENDING-SYNC',
+        checkedOutItems: itemsToCheckout,
+        safeMeetingPoint: safeMeetingPoint,
+        pickupAddress: itemsToCheckout.first.sellerPickupAddress,
+        buyerAccountInfo: 'Mahasiswa UB',
+        paymentMethod: paymentMethod,
+        productSubtotal: subtotal,
+        shippingFee: shippingFee,
+        discount: discount,
+        expiresAt: DateTime.now().add(timeoutDuration),
+        midtransOrderId: result['midtransOrderId']?.toString(),
+        qrisString: result['redirectUrl']?.toString(),
+      );
+      notifyListeners();
+    } catch (e) {
+      _lastErrorMessage = e.toString().replaceFirst('Exception: ', '');
+      debugPrint('Error _syncStartSessionToSupabase: $e');
+      notifyListeners();
     }
-
-    _activePaymentSession = null;
-    notifyListeners();
   }
 
-  /// Dipanggil saat tombol "Konfirmasi Pembayaran" diklik & status Midtrans Settlement
+  Future<void> cancelOrExpirePaymentSession() async {
+    if (_activePaymentSession == null) return;
+    final sessionId = _activePaymentSession!.sessionId;
+
+    try {
+      if (sessionId != 'PENDING-SYNC') {
+        await _repository.cancelOrExpireSession(sessionId);
+      }
+    } catch (e) {
+      debugPrint('Error cancelOrExpirePaymentSession: $e');
+    } finally {
+      _activePaymentSession = null;
+      await loadCartFromSupabase();
+    }
+  }
+
   Future<bool> confirmPaymentSuccess() async {
     if (_activePaymentSession == null) return false;
-    final session = _activePaymentSession!;
+    final sessionId = _activePaymentSession!.sessionId;
 
-    // TODO: Cek status transaksi ke backend Supabase / Midtrans
-    final beliItems = session.checkedOutItems
-        .where((i) => i.type == OrderType.beli)
-        .toList();
-    final sewaItems = session.checkedOutItems
-        .where((i) => i.type == OrderType.sewa)
-        .toList();
-
-    if (beliItems.isNotEmpty) {
-      OrderController.instance.addOrder(
-        OrderModel(
-          id: 'ORD-${DateTime.now().millisecondsSinceEpoch}-B',
-          shopId: beliItems.first.shopId,
-          shopName: beliItems.first.shopName,
-          shopAvatarPath: 'assets/images/shop_avatar.png',
-          orderType: OrderType.beli,
-          status: OrderStatus.menunggu,
-          items: beliItems
-              .map(
-                (c) => OrderItemModel(
-              id: c.id,
-              productName: c.productName,
-              imagePath: c.imagePath,
-              price: c.unitPrice,
-              quantity: c.quantity,
-              variant: c.subtitleInfo,
-            ),
-          )
-              .toList(),
-          orderDateText: 'Jumat, 30 Oktober 2026, 15:30 WIB',
-          receivedDateText: 'Senin, 2 November 2026, 13:00 WIB',
-          pickupAddress: session.pickupAddress,
-          safeMeetingPoint: session.safeMeetingPoint,
-          buyerAccountInfo: session.buyerAccountInfo,
-          productSubtotal:
-          beliItems.fold(0, (s, i) => s + i.subtotalPrice),
-          shippingFee: session.shippingFee,
-          discount: session.discount,
-          paymentMethod: session.paymentMethod,
-        ),
-      );
+    if (sessionId == 'PENDING-SYNC') {
+      _lastErrorMessage =
+      'Sesi pembayaran masih disiapkan. Tunggu beberapa detik lagi.';
+      return false;
     }
 
-    if (sewaItems.isNotEmpty) {
-      final firstSewa = sewaItems.first;
-      OrderController.instance.addOrder(
-        OrderModel(
-          id: 'ORD-${DateTime.now().millisecondsSinceEpoch}-S',
-          shopId: firstSewa.shopId,
-          shopName: firstSewa.shopName,
-          shopAvatarPath: 'assets/images/shop_avatar.png',
-          orderType: OrderType.sewa,
-          status: OrderStatus.menunggu,
-          items: sewaItems
-              .map(
-                (c) => OrderItemModel(
-              id: c.id,
-              productName: c.productName,
-              imagePath: c.imagePath,
-              price: c.subtotalPrice,
-              quantity: c.quantity,
-              variant: c.subtitleInfo,
-            ),
-          )
-              .toList(),
-          orderDateText: 'Jumat, 30 Oktober 2026',
-          receivedDateText: 'Senin, 2 November 2026',
-          rentalDurationDays: firstSewa.selectedRentalDays,
-          rentalRemainingText: '${firstSewa.selectedRentalDays} hari lagi',
-          rentalReturnDateText: firstSewa.rentalDateRangeText,
-          pickupAddress: session.pickupAddress,
-          safeMeetingPoint: session.safeMeetingPoint,
-          buyerAccountInfo: session.buyerAccountInfo,
-          productSubtotal:
-          sewaItems.fold(0, (s, i) => s + i.subtotalPrice),
-          shippingFee: session.shippingFee,
-          discount: session.discount,
-          paymentMethod: session.paymentMethod,
-        ),
-      );
+    try {
+      _lastErrorMessage = null;
+      await _repository.confirmPaymentSession(sessionId);
+      _activePaymentSession = null;
+      await loadCartFromSupabase();
+      await OrderController.instance.loadBuyerOrders();
+      return true;
+    } catch (e) {
+      _lastErrorMessage = e.toString().replaceFirst('Exception: ', '');
+      debugPrint('Error confirmPaymentSuccess: $e');
+      return false;
     }
-
-    _activePaymentSession = null;
-    notifyListeners();
-    return true;
   }
 }
